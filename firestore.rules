@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: roasts
+    // Document ID: auto-id
+    // Fields:
+    //   - uid: string (required, immutable) - Firebase Auth uid of the owner
+    //   - sourceType: string (required) - linkedin | github | instagram | resume
+    //   - profileName: string (required, 0-200)
+    //   - profileUrl: string (required, 0-2000) - empty for resume
+    //   - fileName: string (required, 0-500) - empty for URL sources
+    //   - fileUrl: string (required, 0-2000) - Storage URL for resume
+    //   - profileImage: string (required, 0-2000)
+    //   - roastText: string (required, 1-8000)
+    //   - roastScore: number (required, 0-10)
+    //   - createdAt: timestamp (required)
+    //
+    // Users may create, read, and delete only their own documents.
+    // Updates are denied so owners cannot rewrite uid or other users' data.
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwnerUid(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function validString(value, minLen, maxLen) {
+      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    }
+
+    function isValidRoast(data) {
+      return data.keys().hasOnly([
+          'uid',
+          'sourceType',
+          'profileName',
+          'profileUrl',
+          'fileName',
+          'fileUrl',
+          'profileImage',
+          'roastText',
+          'roastScore',
+          'createdAt'
+        ]) &&
+        data.uid == request.auth.uid &&
+        validString(data.uid, 1, 128) &&
+        data.sourceType in ['linkedin', 'github', 'instagram', 'resume'] &&
+        validString(data.profileName, 0, 200) &&
+        validString(data.profileUrl, 0, 2000) &&
+        validString(data.fileName, 0, 500) &&
+        validString(data.fileUrl, 0, 2000) &&
+        validString(data.profileImage, 0, 2000) &&
+        validString(data.roastText, 1, 8000) &&
+        data.roastScore is number &&
+        data.roastScore >= 0 &&
+        data.roastScore <= 10 &&
+        data.createdAt is timestamp;
+    }
+
+    match /roasts/{roastId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && isValidRoast(request.resource.data);
+      allow update: if false;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+  }
+}

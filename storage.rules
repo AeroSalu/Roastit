@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Resume files live at resumes/{uid}/{fileName}.
+    // Only the signed-in owner can upload, read, or delete their files.
+    match /resumes/{userId}/{fileName} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isAllowedResume() {
+        return request.resource.size > 0 &&
+          request.resource.size <= 8 * 1024 * 1024 &&
+          request.resource.contentType.matches('application/pdf|image/jpeg|image/png|image/webp');
+      }
+
+      allow read, delete: if isOwner();
+      allow create, update: if isOwner() && isAllowedResume();
+    }
+  }
+}
