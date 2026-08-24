@@ -10,10 +10,11 @@
     <script defer src="/__/firebase/12.17.1/firebase-firestore-compat.js"></script>
     <script defer src="/__/firebase/12.17.1/firebase-storage-compat.js"></script>
     <script defer src="/__/firebase/init.js?useEmulator=true"></script>
-    <script defer src="js/validators.js"></script>
-    <script defer src="js/roast-services.js"></script>
-    <script defer src="js/history-service.js"></script>
-    <script defer src="dashboard.js"></script>
+<script defer src="js/validators.js?v=3"></script>
+<script defer src="js/roast-services.js?v=3"></script>
+<script defer src="js/history-service.js?v=3"></script>
+<script defer src="github-service.js?v=3"></script>
+<script defer src="dashboard.js?v=3"></script>
   </head>
   <body>
     <div class="overlay" id="overlay"></div>
@@ -52,7 +53,7 @@
               <input id="resume-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>
               <p class="selected-file" id="selected-file" aria-live="polite"></p>
             </div>
-            <button class="btn btn-primary roast-btn" id="roast-btn" type="button">🔥 Roast Profile</button>
+            <button class="btn btn-primary roast-btn" id="roast-btn" type="button">Roast Profile</button>
             <p class="status" id="roast-status" role="status" aria-live="polite"></p>
           </article>
           <section class="recent-block card">
@@ -62,7 +63,7 @@
         </section>
 
         <section class="view" id="view-history">
-          <div class="section-title-row history-heading"><div><p class="eyebrow">YOUR ARCHIVE</p><h1>🔥 Roast History</h1></div><button class="btn btn-ghost" id="history-refresh-btn" type="button">Refresh</button></div>
+          <div class="section-title-row history-heading"><div><p class="eyebrow">YOUR ARCHIVE</p><h1>Roast History</h1></div><button class="btn btn-ghost" id="history-refresh-btn" type="button">Refresh</button></div>
           <div class="history-tools"><div class="filter-row" aria-label="Filter roast history"><button class="filter-btn active" type="button" data-filter="all">All</button><button class="filter-btn" type="button" data-filter="linkedin">💼 LinkedIn</button><button class="filter-btn" type="button" data-filter="github">💻 GitHub</button><button class="filter-btn" type="button" data-filter="instagram">📸 Instagram</button><button class="filter-btn" type="button" data-filter="resume">📄 Resume</button></div><label class="sr-only" for="history-search">Search your roasts</label><input class="search-input" id="history-search" type="search" placeholder="Search your roasts..." autocomplete="off"></div>
           <p class="status" id="history-status" role="status" aria-live="polite"></p><div class="history-grid" id="history-list"></div><div class="center-action"><button class="btn btn-ghost" id="load-more-btn" type="button" hidden>Load More</button></div>
         </section>

@@ -18,35 +18,6 @@ const LinkedinService = {
   },
 };
 
-const GithubService = {
-  prepare: async function (url, profileName) {
-    const prepared = {
-      sourceType: "github",
-      profileName: profileName,
-      profileUrl: url,
-      fileName: "",
-      fileUrl: "",
-      profileImage: "",
-      notes: "",
-    };
-
-    try {
-      const response = await fetch("https://api.github.com/users/" + encodeURIComponent(profileName));
-      if (!response.ok) {
-        return prepared;
-      }
-      const data = await response.json();
-      prepared.profileName = data.login || profileName;
-      prepared.profileImage = data.avatar_url || "";
-      prepared.notes = data.bio || "";
-    } catch (error) {
-      console.warn("GitHub public API lookup skipped:", error);
-    }
-
-    return prepared;
-  },
-};
-
 const InstagramService = {
   // INTEGRATION POINT: connect a backend Instagram lookup later.
   prepare: async function (url, profileName) {
@@ -154,18 +125,20 @@ const RoastService = {
   },
 
   save: async function (user, prepared, result) {
+    const roastText = (result.roastText || result.roast || result.headline || "Roast generated").slice(0, 8000);
+    const rawScore = typeof result.roastScore === "number" ? result.roastScore : (typeof result.score === "number" ? result.score : 5);
+    const roastScore = Math.max(0, Math.min(10, Number(rawScore) || 0));
+
     const payload = {
       uid: user.uid,
-      sourceType: prepared.sourceType,
-      profileName: prepared.profileName || "",
-      profileUrl: prepared.profileUrl || "",
-      fileName: prepared.fileName || "",
-      fileUrl: prepared.fileUrl || "",
-      // Profile images belong to the roasted source, not the signed-in user.
-      // The authenticated user's Google photo is displayed by the dashboard.
-      profileImage: prepared.profileImage || "",
-      roastText: result.roastText,
-      roastScore: result.roastScore,
+      sourceType: prepared.sourceType || "github",
+      profileName: (prepared.profileName || "").slice(0, 200),
+      profileUrl: (prepared.profileUrl || "").slice(0, 2000),
+      fileName: (prepared.fileName || "").slice(0, 500),
+      fileUrl: (prepared.fileUrl || "").slice(0, 2000),
+      profileImage: (prepared.profileImage || "").slice(0, 2000),
+      roastText: roastText,
+      roastScore: roastScore,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
