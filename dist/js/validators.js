@@ -31,7 +31,10 @@ const RoastValidators = {
   },
 
   getHostAndPath: function (raw) {
-    const href = this.normalizeUrl(raw);
+    let href = this.normalizeUrl(raw);
+    if (!href && raw && !raw.includes("://")) {
+      href = this.normalizeUrl("https://" + raw.trim());
+    }
     if (!href) {
       return null;
     }

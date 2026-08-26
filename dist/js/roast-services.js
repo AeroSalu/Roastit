@@ -18,21 +18,6 @@ const LinkedinService = {
   },
 };
 
-const InstagramService = {
-  // INTEGRATION POINT: connect a backend Instagram lookup later.
-  prepare: async function (url, profileName) {
-    return {
-      sourceType: "instagram",
-      profileName: profileName,
-      profileUrl: url,
-      fileName: "",
-      fileUrl: "",
-      profileImage: "",
-      notes: "",
-    };
-  },
-};
-
 const ResumeService = {
   MAX_BYTES: 8 * 1024 * 1024,
 

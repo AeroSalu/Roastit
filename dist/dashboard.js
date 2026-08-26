@@ -341,7 +341,76 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Other sources (LinkedIn, Instagram, Resume)
+    if (state.sourceType === "instagram") {
+      var url = profileUrl.value.trim();
+      if (!url) {
+        roastStatus.textContent = "Please enter your Instagram profile URL.";
+        return;
+      }
+
+      if (typeof RoastValidators !== "undefined") {
+        var validation = RoastValidators.validateInstagram(url);
+        if (!validation.ok) {
+          roastStatus.textContent = validation.message;
+          return;
+        }
+        url = validation.url;
+      }
+
+      try {
+        setRoastProcessing(true, "Getting Instagram profile...");
+
+        // Step 1: Get and normalize Instagram data
+        var prepared = await InstagramService.prepare(url, "");
+        console.log("Prepared Instagram data:", prepared);
+
+        // Step 2: Send to Roast Engine (Qwen)
+        roastStatus.textContent = "🔥 Sending profile to Qwen...";
+        var response = await InstagramService.sendToRoastEngine(prepared);
+        console.log("Qwen response:", response);
+
+        if (!response) {
+          throw new Error("No response received from Roast Engine.");
+        }
+
+        if (response.success === false) {
+          throw new Error(response.error || "Roast Engine failed.");
+        }
+
+        var result = response.result;
+        if (!result) {
+          throw new Error("Roast Engine returned no roast result.");
+        }
+
+        // Step 3: Save roast to Firestore History
+        roastStatus.textContent = "Saving your roast to history...";
+        var savedRoast = null;
+        try {
+          savedRoast = await RoastService.save(state.user, prepared, result);
+          HistoryService.prepend(savedRoast);
+          state.recentItems.unshift(savedRoast);
+          state.recentItems = state.recentItems.slice(0, 3);
+          renderRecentRoasts();
+          renderHistory();
+        } catch (saveError) {
+          console.warn("Could not save roast to Firestore:", saveError);
+        }
+
+        // Step 4: Display roast
+        roastStatus.textContent = "🔥 Roast generated!";
+        renderRoastResult(prepared, result, savedRoast);
+        showView("result");
+        setRoastProcessing(false, "");
+
+      } catch (error) {
+        console.error("Roast creation failed:", error);
+        roastStatus.textContent = getFriendlyError(error);
+        setRoastProcessing(false);
+      }
+      return;
+    }
+
+    // Other sources (LinkedIn, Resume)
     setRoastProcessing(true, "Analyzing profile...");
     try {
       var preparedOther;
@@ -422,7 +491,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // =========================================
-  // RENDER DETAILED GITHUB ROAST RESULT
+  // RENDER DETAILED ROAST RESULT
   // =========================================
 
   function renderRoastResult(prepared, result, savedRoast) {
@@ -430,22 +499,23 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = "";
 
     // Badge
+    var info = sourceInfo[prepared.sourceType] || sourceInfo.github;
     var badge = document.createElement("span");
     badge.className = "source-badge";
-    badge.textContent = "💻 GitHub";
+    badge.textContent = info.icon + " " + info.label;
     container.appendChild(badge);
 
     // Title
     var title = document.createElement("h1");
-    title.textContent = prepared.profileName || "GitHub Developer";
+    title.textContent = prepared.profileName || (info.label + " Profile");
     container.appendChild(title);
 
-    // GitHub User Profile Photo
+    // User Profile Photo
     if (prepared.profileImage) {
       var image = document.createElement("img");
       image.className = "result-image";
       image.src = prepared.profileImage;
-      image.alt = (prepared.profileName || "GitHub Developer") + "'s profile photo";
+      image.alt = (prepared.profileName || info.label) + "'s profile photo";
       image.referrerPolicy = "no-referrer";
       container.appendChild(image);
     }
@@ -486,19 +556,19 @@ document.addEventListener("DOMContentLoaded", function () {
       addSection(container, "💀 THE ROAST", result.roastText);
     }
 
-    // Technical Analysis
+    // Technical / Profile Analysis
     if (result.technicalAnalysis) {
-      addSection(container, "💻 TECHNICAL ANALYSIS", result.technicalAnalysis);
+      addSection(container, prepared.sourceType === "instagram" ? "📸 PROFILE & AESTHETIC ANALYSIS" : "💻 TECHNICAL ANALYSIS", result.technicalAnalysis);
     }
 
-    // Project Analysis
+    // Project / Content Analysis
     if (result.projectAnalysis) {
-      addSection(container, "📁 PROJECT ANALYSIS", result.projectAnalysis);
+      addSection(container, prepared.sourceType === "instagram" ? "📱 CONTENT & GRID ANALYSIS" : "📁 PROJECT ANALYSIS", result.projectAnalysis);
     }
 
-    // Activity Analysis
+    // Activity / Clout Analysis
     if (result.activityAnalysis) {
-      addSection(container, "📊 ACTIVITY ANALYSIS", result.activityAnalysis);
+      addSection(container, prepared.sourceType === "instagram" ? "📊 CLOUT & ENGAGEMENT ANALYSIS" : "📊 ACTIVITY ANALYSIS", result.activityAnalysis);
     }
 
     // Strengths
