@@ -1,78 +1,701 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Roastit Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <script defer src="/__/firebase/12.17.1/firebase-app-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.17.1/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
-<script defer src="js/validators.js?v=3"></script>
-<script defer src="js/roast-services.js?v=3"></script>
-<script defer src="js/history-service.js?v=3"></script>
-<script defer src="github-service.js?v=3"></script>
-<script defer src="instagram-service.js?v=1"></script>
-<script defer src="dashboard.js?v=3"></script>
-  </head>
-  <body>
-    <div class="overlay" id="overlay"></div>
-    <div class="app">
-      <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand"><span class="brand-mark">R</span> Roastit</div>
-        <nav class="nav" aria-label="Main navigation">
-          <button class="nav-btn active" type="button" data-view="home">Dashboard</button>
-          <button class="nav-btn" type="button" data-view="history">History</button>
-          <button class="nav-btn" type="button" data-view="profile">Profile</button>
-        </nav>
-        <div class="sidebar-footer"><button class="btn btn-ghost btn-full" id="logout-btn" type="button">Logout</button></div>
-      </aside>
 
-      <main class="main">
-        <div class="topbar">
-          <button class="menu-toggle" id="menu-toggle" type="button">Menu</button>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Roastit Dashboard</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase -->
+  <script defer src="/__/firebase/12.17.1/firebase-app-compat.js"></script>
+  <script defer src="/__/firebase/12.17.1/firebase-auth-compat.js"></script>
+  <script defer src="/__/firebase/12.17.1/firebase-firestore-compat.js"></script>
+  <script defer src="/__/firebase/12.17.1/firebase-storage-compat.js"></script>
+  <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+
+  <!-- RoastIt Scripts -->
+  <script defer src="js/validators.js?v=3"></script>
+  <script defer src="js/roast-services.js?v=3"></script>
+  <script defer src="js/history-service.js?v=3"></script>
+  <script defer src="github-service.js?v=3"></script>
+  <script defer src="instagram-service.js?v=1"></script>
+  <script defer src="dashboard.js?v=3"></script>
+</head>
+
+
+<body>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="app">
+
+    <!-- =========================================
+         SIDEBAR
+    ========================================== -->
+
+    <aside class="sidebar" id="sidebar">
+
+      <div class="sidebar-brand">
+        <span class="brand-mark">R</span>
+        Roastit
+      </div>
+
+
+      <nav class="nav" aria-label="Main navigation">
+
+        <button
+          class="nav-btn active"
+          type="button"
+          data-view="home">
+          Dashboard
+        </button>
+
+
+        <button
+          class="nav-btn"
+          type="button"
+          data-view="history">
+          History
+        </button>
+
+
+        <button
+          class="nav-btn"
+          type="button"
+          data-view="profile">
+          Profile
+        </button>
+
+      </nav>
+
+
+      <div class="sidebar-footer">
+
+        <button
+          class="btn btn-ghost btn-full"
+          id="logout-btn"
+          type="button">
+          Logout
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <!-- =========================================
+         MAIN
+    ========================================== -->
+
+    <main class="main">
+
+      <!-- TOPBAR -->
+
+      <div class="topbar">
+
+        <button
+          class="menu-toggle"
+          id="menu-toggle"
+          type="button">
+          Menu
+        </button>
+
+      </div>
+
+
+      <!-- =========================================
+           DASHBOARD
+      ========================================== -->
+
+      <section
+        class="view active"
+        id="view-home">
+
+
+        <!-- HEADER -->
+
+        <div class="dashboard-heading">
+
+          <div>
+
+            <p class="eyebrow">
+              ROAST LAB
+            </p>
+
+
+            <h1 id="welcome-title">
+              Welcome 👋
+            </h1>
+
+
+            <p class="muted">
+              Choose a source and we’ll find the personality
+              hiding in the pixels.
+            </p>
+
+          </div>
+
+
+          <img
+            class="avatar avatar-lg"
+            id="user-avatar"
+            alt="Profile photo"
+            referrerpolicy="no-referrer">
+
         </div>
 
-        <section class="view active" id="view-home">
-          <div class="dashboard-heading">
-            <div><p class="eyebrow">ROAST LAB</p><h1 id="welcome-title">Welcome 👋</h1><p class="muted">Choose a source and we’ll find the personality hiding in the pixels.</p></div>
-            <img class="avatar avatar-lg" id="user-avatar" alt="Profile photo" referrerpolicy="no-referrer">
+
+        <!-- =========================================
+             SOURCE SELECTION
+        ========================================== -->
+
+        <section
+          class="source-grid"
+          aria-label="Choose a roast source">
+
+
+          <!-- GITHUB -->
+
+          <button
+            class="source-card selected"
+            type="button"
+            data-source="github"
+            aria-pressed="true">
+
+            <span class="source-icon">
+              💻
+            </span>
+
+            <span>
+              GitHub
+            </span>
+
+            <small>
+              Profile URL
+            </small>
+
+          </button>
+
+
+          <!-- INSTAGRAM -->
+
+          <button
+            class="source-card"
+            type="button"
+            data-source="instagram"
+            aria-pressed="false">
+
+            <span class="source-icon">
+              📸
+            </span>
+
+            <span>
+              Instagram
+            </span>
+
+            <small>
+              Profile URL
+            </small>
+
+          </button>
+
+
+          <!-- RESUME -->
+
+          <button
+            class="source-card"
+            type="button"
+            data-source="resume"
+            aria-pressed="false">
+
+            <span class="source-icon">
+              📄
+            </span>
+
+            <span>
+              Resume
+            </span>
+
+            <small>
+              PDF or image
+            </small>
+
+          </button>
+
+        </section>
+
+
+        <!-- =========================================
+             ROAST FORM
+        ========================================== -->
+
+        <article class="card roast-form-card">
+
+
+          <!-- URL FORM -->
+
+          <div id="url-source-form">
+
+            <label
+              class="field-label"
+              id="profile-url-label"
+              for="profile-url">
+
+              GitHub Profile URL
+
+            </label>
+
+
+            <input
+              class="url-input"
+              id="profile-url"
+              type="url"
+              placeholder="https://github.com/username"
+              autocomplete="url">
+
           </div>
-          <section class="source-grid" aria-label="Choose a roast source">
-            <button class="source-card selected" type="button" data-source="linkedin" aria-pressed="true"><span class="source-icon">💼</span><span>LinkedIn</span><small>Profile URL</small></button>
-            <button class="source-card" type="button" data-source="github" aria-pressed="false"><span class="source-icon">💻</span><span>GitHub</span><small>Profile URL</small></button>
-            <button class="source-card" type="button" data-source="instagram" aria-pressed="false"><span class="source-icon">📸</span><span>Instagram</span><small>Profile URL</small></button>
-            <button class="source-card" type="button" data-source="resume" aria-pressed="false"><span class="source-icon">📄</span><span>Resume</span><small>PDF or image</small></button>
-          </section>
-          <article class="card roast-form-card">
-            <div id="url-source-form"><label class="field-label" id="profile-url-label" for="profile-url">LinkedIn Profile URL</label><input class="url-input" id="profile-url" type="url" placeholder="https://linkedin.com/in/username" autocomplete="url"></div>
-            <div class="resume-source-form" id="resume-source-form" hidden>
-              <label class="field-label" for="resume-file">Upload your resume</label>
-              <label class="drop-zone" id="drop-zone" for="resume-file"><span class="drop-zone-icon">📄</span><span id="file-picker-copy">Drop a PDF or image here, or choose a file</span><small>PDF, JPG, JPEG, PNG, or WEBP · maximum 8 MB</small></label>
-              <input id="resume-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>
-              <p class="selected-file" id="selected-file" aria-live="polite"></p>
+
+
+          <!-- =========================================
+               RESUME FORM
+          ========================================== -->
+
+          <div
+            class="resume-source-form"
+            id="resume-source-form"
+            hidden>
+
+
+            <label
+              class="field-label"
+              for="resume-file">
+
+              Upload your resume
+
+            </label>
+
+
+            <label
+              class="drop-zone"
+              id="drop-zone"
+              for="resume-file">
+
+              <span class="drop-zone-icon">
+                📄
+              </span>
+
+
+              <span id="file-picker-copy">
+
+                Drop a PDF or image here,
+                or choose a file
+
+              </span>
+
+
+              <small>
+
+                PDF, JPG, JPEG, PNG, or WEBP
+                · maximum 8 MB
+
+              </small>
+
+            </label>
+
+
+            <input
+              id="resume-file"
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              hidden>
+
+
+            <p
+              class="selected-file"
+              id="selected-file"
+              aria-live="polite">
+            </p>
+
+          </div>
+
+
+          <!-- =========================================
+               LANGUAGE SELECTOR
+          ========================================== -->
+
+          <div class="language-selector">
+
+            <label class="field-label">
+              Roast Language
+            </label>
+
+
+            <div
+              class="language-buttons"
+              role="group"
+              aria-label="Choose roast language">
+
+
+              <!-- ENGLISH -->
+
+              <button
+                class="language-btn active"
+                type="button"
+                data-language="english"
+                aria-pressed="true">
+
+                🇬🇧 English
+
+              </button>
+
+
+              <!-- HINGLISH -->
+
+              <button
+                class="language-btn"
+                type="button"
+                data-language="hinglish"
+                aria-pressed="false">
+
+                🇮🇳 Hinglish
+
+              </button>
+
             </div>
-            <button class="btn btn-primary roast-btn" id="roast-btn" type="button">Roast Profile</button>
-            <p class="status" id="roast-status" role="status" aria-live="polite"></p>
-          </article>
-          <section class="recent-block card">
-            <div class="section-title-row"><div><h2>Recent Roasts</h2><p class="muted">Your latest scorch marks.</p></div><button class="btn btn-ghost" id="view-history-btn" type="button">View History</button></div>
-            <div class="recent-list" id="recent-roasts"></div>
-          </section>
+
+          </div>
+
+
+          <!-- =========================================
+               ROAST BUTTON
+          ========================================== -->
+
+          <button
+            class="btn btn-primary roast-btn"
+            id="roast-btn"
+            type="button">
+
+            🔥 Roast Profile
+
+          </button>
+
+
+          <!-- STATUS -->
+
+          <p
+            class="status"
+            id="roast-status"
+            role="status"
+            aria-live="polite">
+          </p>
+
+        </article>
+
+
+        <!-- =========================================
+             RECENT ROASTS
+        ========================================== -->
+
+        <section class="recent-block card">
+
+
+          <div class="section-title-row">
+
+            <div>
+
+              <h2>
+                Recent Roasts
+              </h2>
+
+
+              <p class="muted">
+                Your latest scorch marks.
+              </p>
+
+            </div>
+
+
+            <button
+              class="btn btn-ghost"
+              id="view-history-btn"
+              type="button">
+
+              View History
+
+            </button>
+
+          </div>
+
+
+          <div
+            class="recent-list"
+            id="recent-roasts">
+          </div>
+
         </section>
 
-        <section class="view" id="view-history">
-          <div class="section-title-row history-heading"><div><p class="eyebrow">YOUR ARCHIVE</p><h1>Roast History</h1></div><button class="btn btn-ghost" id="history-refresh-btn" type="button">Refresh</button></div>
-          <div class="history-tools"><div class="filter-row" aria-label="Filter roast history"><button class="filter-btn active" type="button" data-filter="all">All</button><button class="filter-btn" type="button" data-filter="linkedin">💼 LinkedIn</button><button class="filter-btn" type="button" data-filter="github">💻 GitHub</button><button class="filter-btn" type="button" data-filter="instagram">📸 Instagram</button><button class="filter-btn" type="button" data-filter="resume">📄 Resume</button></div><label class="sr-only" for="history-search">Search your roasts</label><input class="search-input" id="history-search" type="search" placeholder="Search your roasts..." autocomplete="off"></div>
-          <p class="status" id="history-status" role="status" aria-live="polite"></p><div class="history-grid" id="history-list"></div><div class="center-action"><button class="btn btn-ghost" id="load-more-btn" type="button" hidden>Load More</button></div>
-        </section>
+      </section>
 
-        <section class="view" id="view-profile"><article class="card profile-card"><img class="avatar avatar-lg" id="profile-avatar" alt="Your profile photo" referrerpolicy="no-referrer"><h1 id="profile-name">Your profile</h1><p id="profile-email" class="muted">—</p><p class="muted">Signed in securely with Google.</p></article></section>
-        <section class="view" id="view-result"><article class="card result-card" id="result-content"></article></section>
-      </main>
-    </div>
-    <dialog class="confirm-dialog" id="delete-dialog" aria-labelledby="delete-dialog-title"><form method="dialog"><h2 id="delete-dialog-title">Delete this roast?</h2><p>Are you sure you want to delete this roast? This cannot be undone.</p><div class="dialog-actions"><button class="btn btn-ghost" value="cancel" type="submit">Cancel</button><button class="btn btn-danger" id="confirm-delete-btn" value="delete" type="submit">Delete</button></div></form></dialog>
-  </body>
+
+      <!-- =========================================
+           HISTORY
+      ========================================== -->
+
+      <section
+        class="view"
+        id="view-history">
+
+
+        <div
+          class="section-title-row history-heading">
+
+          <div>
+
+            <p class="eyebrow">
+              YOUR ARCHIVE
+            </p>
+
+
+            <h1>
+              Roast History
+            </h1>
+
+          </div>
+
+
+          <button
+            class="btn btn-ghost"
+            id="history-refresh-btn"
+            type="button">
+
+            Refresh
+
+          </button>
+
+        </div>
+
+
+        <!-- HISTORY TOOLS -->
+
+        <div class="history-tools">
+
+
+          <div
+            class="filter-row"
+            aria-label="Filter roast history">
+
+
+            <button
+              class="filter-btn active"
+              type="button"
+              data-filter="all">
+
+              All
+
+            </button>
+
+
+            <button
+              class="filter-btn"
+              type="button"
+              data-filter="github">
+
+              💻 GitHub
+
+            </button>
+
+
+            <button
+              class="filter-btn"
+              type="button"
+              data-filter="instagram">
+
+              📸 Instagram
+
+            </button>
+
+
+            <button
+              class="filter-btn"
+              type="button"
+              data-filter="resume">
+
+              📄 Resume
+
+            </button>
+
+          </div>
+
+
+          <label
+            class="sr-only"
+            for="history-search">
+
+            Search your roasts
+
+          </label>
+
+
+          <input
+            class="search-input"
+            id="history-search"
+            type="search"
+            placeholder="Search your roasts..."
+            autocomplete="off">
+
+        </div>
+
+
+        <p
+          class="status"
+          id="history-status"
+          role="status"
+          aria-live="polite">
+        </p>
+
+
+        <div
+          class="history-grid"
+          id="history-list">
+        </div>
+
+
+        <div class="center-action">
+
+          <button
+            class="btn btn-ghost"
+            id="load-more-btn"
+            type="button"
+            hidden>
+
+            Load More
+
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <!-- =========================================
+           PROFILE
+      ========================================== -->
+
+      <section
+        class="view"
+        id="view-profile">
+
+
+        <article class="card profile-card">
+
+          <img
+            class="avatar avatar-lg"
+            id="profile-avatar"
+            alt="Your profile photo"
+            referrerpolicy="no-referrer">
+
+
+          <h1 id="profile-name">
+            Your profile
+          </h1>
+
+
+          <p
+            id="profile-email"
+            class="muted">
+
+            —
+
+          </p>
+
+
+          <p class="muted">
+
+            Signed in securely with Google.
+
+          </p>
+
+        </article>
+
+      </section>
+
+
+      <!-- =========================================
+           RESULT
+      ========================================== -->
+
+      <section
+        class="view"
+        id="view-result">
+
+        <article
+          class="card result-card"
+          id="result-content">
+        </article>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- =========================================
+       DELETE DIALOG
+  ========================================== -->
+
+  <dialog
+    class="confirm-dialog"
+    id="delete-dialog"
+    aria-labelledby="delete-dialog-title">
+
+
+    <form method="dialog">
+
+
+      <h2 id="delete-dialog-title">
+        Delete this roast?
+      </h2>
+
+
+      <p>
+        Are you sure you want to delete this roast?
+        This cannot be undone.
+      </p>
+
+
+      <div class="dialog-actions">
+
+
+        <button
+          class="btn btn-ghost"
+          value="cancel"
+          type="submit">
+
+          Cancel
+
+        </button>
+
+
+        <button
+          class="btn btn-danger"
+          id="confirm-delete-btn"
+          value="delete"
+          type="submit">
+
+          Delete
+
+        </button>
+
+      </div>
+
+    </form>
+
+  </dialog>
+
+</body>
+
 </html>

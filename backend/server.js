@@ -9,10 +9,12 @@ const ollama = new Ollama({
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
+// ============================================================
+// HEALTH CHECK
+// ============================================================
 
-// Health check
 app.get("/", (req, res) => {
     res.json({
         status: "ok",
@@ -20,24 +22,25 @@ app.get("/", (req, res) => {
     });
 });
 
+// ============================================================
+// COMMON HELPERS
+// ============================================================
 
-// -----------------------------------------
-// Helper: Decode HTML Entities
-// -----------------------------------------
 function decodeHtmlEntities(str) {
     if (!str) return "";
-    return str
+
+    return String(str)
         .replace(/&#(\d+);/g, (match, dec) => {
             try {
                 return String.fromCodePoint(parseInt(dec, 10));
-            } catch (e) {
+            } catch {
                 return match;
             }
         })
         .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => {
             try {
                 return String.fromCodePoint(parseInt(hex, 16));
-            } catch (e) {
+            } catch {
                 return match;
             }
         })
@@ -52,535 +55,1857 @@ function decodeHtmlEntities(str) {
         .replace(/&nbsp;/g, " ");
 }
 
-
-// -----------------------------------------
-// Helper: Parse K/M/B Count Strings
-// -----------------------------------------
 function parseCount(str) {
     if (!str) return 0;
-    const cleaned = str.replace(/,/g, "").trim().toUpperCase();
+
+    const cleaned = String(str)
+        .replace(/,/g, "")
+        .trim()
+        .toUpperCase();
+
     if (cleaned.endsWith("B")) {
-        return Math.round(parseFloat(cleaned.slice(0, -1)) * 1000000000) || 0;
+        return Math.round(
+            parseFloat(cleaned.slice(0, -1)) * 1000000000
+        ) || 0;
     }
+
     if (cleaned.endsWith("M")) {
-        return Math.round(parseFloat(cleaned.slice(0, -1)) * 1000000) || 0;
+        return Math.round(
+            parseFloat(cleaned.slice(0, -1)) * 1000000
+        ) || 0;
     }
+
     if (cleaned.endsWith("K")) {
-        return Math.round(parseFloat(cleaned.slice(0, -1)) * 1000) || 0;
+        return Math.round(
+            parseFloat(cleaned.slice(0, -1)) * 1000
+        ) || 0;
     }
+
     return parseInt(cleaned, 10) || 0;
 }
 
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
 
-// -----------------------------------------
-// Helper: Scrape Public Instagram Profile Data
-// -----------------------------------------
+function roundScore(value) {
+    return Math.round(value * 10) / 10;
+}
+
+// ============================================================
+// INSTAGRAM SCRAPER
+// ============================================================
+
 async function scrapeInstagramProfile(username) {
-    const cleanUsername = (username || "").trim().replace(/^@/, "").toLowerCase();
+
+    const cleanUsername = (username || "")
+        .trim()
+        .replace(/^@/, "")
+        .toLowerCase();
+
     if (!cleanUsername) {
-        throw new Error("Username is required");
+        throw new Error("Instagram username is required.");
     }
 
     const userAgents = [
         "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
         "Twitterbot/1.0",
-        "WhatsApp/2.21.12.21 A"
+        "WhatsApp/2.21.12.21 A",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36"
     ];
 
     let html = null;
 
-    for (const ua of userAgents) {
+    for (const userAgent of userAgents) {
+
         try {
-            const url = `https://www.instagram.com/${encodeURIComponent(cleanUsername)}/`;
-            const res = await fetch(url, {
+
+            const url =
+                `https://www.instagram.com/${encodeURIComponent(cleanUsername)}/`;
+
+            const response = await fetch(url, {
                 headers: {
-                    "User-Agent": ua,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
+                    "User-Agent": userAgent,
+                    "Accept":
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language":
+                        "en-US,en;q=0.9"
                 }
             });
 
-            if (res.status === 404) {
+            if (response.status === 404) {
                 return {
                     success: false,
                     error: "Instagram profile not found."
                 };
             }
 
-            if (res.ok) {
-                const text = await res.text();
-                if (text.includes("og:title") || text.includes("og:description") || text.includes('name="description"')) {
+            if (response.ok) {
+
+                const text = await response.text();
+
+                if (
+                    text.includes("og:title") ||
+                    text.includes("og:description") ||
+                    text.includes('name="description"')
+                ) {
                     html = text;
                     break;
                 }
             }
-        } catch (e) {
-            // Try next user agent
-        }
-    }
-
-    if (!html) {
-        return {
-            success: false,
-            error: "Instagram profile data could not be retrieved. Instagram may be blocking automated access."
-        };
-    }
-
-    // Extract meta tags
-    const getMeta = (propOrName, value) => {
-        const r1 = new RegExp(`<meta[^>]*${propOrName}=["']${value}["'][^>]*content=["']([^"']*)["']`, "i");
-        const r2 = new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*${propOrName}=["']${value}["']`, "i");
-        const m = html.match(r1) || html.match(r2);
-        return m ? decodeHtmlEntities(m[1]) : "";
-    };
-
-    const ogTitle = getMeta("property", "og:title") || getMeta("name", "og:title");
-    const ogDesc = getMeta("property", "og:description") || getMeta("name", "og:description");
-    const metaDesc = getMeta("name", "description") || getMeta("property", "description");
-    let ogImage = getMeta("property", "og:image") || getMeta("name", "og:image");
-
-    if (!ogTitle && !ogDesc && !metaDesc) {
-        return {
-            success: false,
-            error: "Instagram profile not found or unavailable."
-        };
-    }
-
-    // Decode ampersands in image url if encoded
-    if (ogImage) {
-        ogImage = ogImage.replace(/&amp;/g, "&");
-    }
-
-    // Parse fullName and username from og:title (e.g., "NASA (@nasa) • Instagram photos and videos")
-    let fullName = cleanUsername;
-    if (ogTitle) {
-        const titleMatch = ogTitle.match(/^(.*?)\s*\(@([a-zA-Z0-9._]+)\)/i);
-        if (titleMatch && titleMatch[1]) {
-            fullName = titleMatch[1].trim();
-        }
-    }
-
-    // Parse followers, following, posts from ogDesc or metaDesc
-    // Example: "104M Followers, 96 Following, 4,891 Posts - See Instagram photos and videos..."
-    let followers = 0;
-    let following = 0;
-    let posts = 0;
-
-    const descText = ogDesc || metaDesc || "";
-    const followersMatch = descText.match(/([0-9.,]+[KMBkmb]?)\s+Followers/i);
-    const followingMatch = descText.match(/([0-9.,]+[KMBkmb]?)\s+Following/i);
-    const postsMatch = descText.match(/([0-9.,]+[KMBkmb]?)\s+Posts/i);
-
-    if (followersMatch) followers = parseCount(followersMatch[1]);
-    if (followingMatch) following = parseCount(followingMatch[1]);
-    if (postsMatch) posts = parseCount(postsMatch[1]);
-
-    // Parse Bio from metaDesc
-    // Example: '... on Instagram: "Discover what\'s new on Instagram 🔎✨"'
-    let bio = "";
-    if (metaDesc) {
-        const bioMatch = metaDesc.match(/on Instagram:\s*"(.*?)"/s) ||
-                         metaDesc.match(/on Instagram:\s*“(.*?)”/s);
-        if (bioMatch) {
-            bio = bioMatch[1].trim();
-        }
-    }
-
-    return {
-        success: true,
-        username: cleanUsername,
-        fullName: fullName || cleanUsername,
-        bio: bio || null,
-        profileImage: ogImage || null,
-        followers: followers,
-        following: following,
-        posts: posts,
-        profileUrl: `https://www.instagram.com/${cleanUsername}/`
-    };
-}
-
-
-// -----------------------------------------
-// GET /api/instagram/:username
-// -----------------------------------------
-app.get("/api/instagram/:username", async (req, res) => {
-    try {
-        const rawUsername = req.params.username;
-        if (!rawUsername) {
-            return res.status(400).json({
-                success: false,
-                error: "Username is required"
-            });
-        }
-
-        const cleanUsername = rawUsername.trim().replace(/^@/, "").toLowerCase();
-        const profile = await scrapeInstagramProfile(cleanUsername);
-
-        if (!profile || !profile.success) {
-            return res.status(404).json({
-                success: false,
-                error: (profile && profile.error) || "Instagram profile not found or unavailable."
-            });
-        }
-
-        res.json(profile);
-    } catch (error) {
-        console.error("Instagram fetch error:", error);
-        res.status(500).json({
-            success: false,
-            error: error.message || "Failed to fetch Instagram profile"
-        });
-    }
-});
-
-
-// -----------------------------------------
-// Roast Engine
-// -----------------------------------------
-app.post("/api/roast", async (req, res) => {
-    try {
-
-        const profileData = req.body;
-
-        // Check if data was received
-        if (
-            !profileData ||
-            Object.keys(profileData).length === 0
-        ) {
-            return res.status(400).json({
-                success: false,
-                error: "No profile data provided"
-            });
-        }
-
-
-        // -----------------------------------------
-        // Extract normalized profile data
-        // -----------------------------------------
-
-        let roastData = profileData;
-
-        if (profileData.notes) {
-            try {
-                roastData =
-                    typeof profileData.notes === "string"
-                        ? JSON.parse(profileData.notes)
-                        : profileData.notes;
-
-            } catch (error) {
-
-                return res.status(400).json({
-                    success: false,
-                    error: "Invalid profile data format"
-                });
-
-            }
-        }
-
-
-        // -----------------------------------------
-        // Prompt for Qwen (Source-Specific)
-        // -----------------------------------------
-
-        const isInstagram = profileData.sourceType === "instagram";
-
-        let prompt;
-
-        if (isInstagram) {
-            prompt = `
-You are RoastIt's AI roast engine.
-
-You are analyzing an Instagram profile.
-
-Your job is to produce a detailed, funny, sarcastic,
-culturally sharp, and constructive roast.
-
-IMPORTANT RULES:
-
-1. ONLY use information provided in PROFILE_DATA.
-2. NEVER invent statistics.
-3. NEVER invent followers, following, or post counts.
-4. NEVER invent bio information or claim something exists if it is not in the data.
-5. Keep the humor sharp, witty, and roasting their bio, aesthetic, clout/ratio, and post count, but not hateful.
-6. Recommendations must be practical and humorous.
-
-Analyze the profile across these areas:
-
-1. Overall profile & aesthetic
-2. Bio & persona
-3. Follower to following ratio & clout dynamics
-4. Post count & grid habits
-5. Strengths
-6. Weaknesses
-7. Most roastable aspect
-8. Recommendations / What they should fix
-9. Final verdict
-
-
-PROFILE_DATA:
-
-${JSON.stringify(roastData, null, 2)}
-
-
-Return ONLY valid JSON.
-
-Use exactly this structure:
-
-{
-    "score": 0,
-    "headline": "",
-    "roast": "",
-    "technicalAnalysis": "",
-    "projectAnalysis": "",
-    "activityAnalysis": "",
-    "strengths": [],
-    "weaknesses": [],
-    "recommendations": [],
-    "finalVerdict": ""
-}
-
-FIELD REQUIREMENTS:
-
-score:
-A number from 0 to 10 (higher means more roastable/burned).
-
-headline:
-A short funny headline for this Instagram user.
-
-roast:
-The main overall roast of their Instagram presence.
-
-technicalAnalysis:
-Analysis of their bio, branding, aesthetic, and persona presentation.
-
-projectAnalysis:
-Analysis of their content, grid presence, and post volume.
-
-activityAnalysis:
-Analysis of their followers/following ratio, clout, and Instagram activity.
-
-strengths:
-An array of humorous but real strengths.
-
-weaknesses:
-An array of roastable weaknesses.
-
-recommendations:
-An array of practical/funny improvements.
-
-finalVerdict:
-A short final humorous verdict.
-`;
-        } else {
-            prompt = `
-You are RoastIt's AI roast engine.
-
-You are analyzing a developer's GitHub profile.
-
-Your job is to produce a detailed, funny, sarcastic,
-technically informed, and constructive roast.
-
-IMPORTANT RULES:
-
-1. ONLY use information provided in PROFILE_DATA.
-2. NEVER invent statistics.
-3. NEVER invent projects.
-4. NEVER invent programming languages.
-5. NEVER invent followers.
-6. NEVER invent achievements.
-7. NEVER invent experience.
-8. NEVER claim something exists if it is not in the data.
-9. Keep the humor sharp but not hateful.
-10. Recommendations must be practical.
-
-Analyze the developer across these areas:
-
-1. Overall profile
-2. Technical ability
-3. Project quality
-4. GitHub activity
-5. Programming languages
-6. Repository quality
-7. Documentation
-8. Professional presentation
-9. Strengths
-10. Weaknesses
-11. Most roastable aspect
-12. Recommendations
-13. Final verdict
-
-
-PROFILE_DATA:
-
-${JSON.stringify(roastData, null, 2)}
-
-
-Return ONLY valid JSON.
-
-Use exactly this structure:
-
-{
-    "score": 0,
-    "headline": "",
-    "roast": "",
-    "technicalAnalysis": "",
-    "projectAnalysis": "",
-    "activityAnalysis": "",
-    "strengths": [],
-    "weaknesses": [],
-    "recommendations": [],
-    "finalVerdict": ""
-}
-
-FIELD REQUIREMENTS:
-
-score:
-A number from 0 to 10.
-
-headline:
-A short funny headline for the developer.
-
-roast:
-The main overall roast.
-
-technicalAnalysis:
-Detailed analysis of their technical profile.
-
-projectAnalysis:
-Analysis of their repositories and projects.
-
-activityAnalysis:
-Analysis of their GitHub activity and repository activity.
-
-strengths:
-An array of useful strengths.
-
-weaknesses:
-An array of weaknesses.
-
-recommendations:
-An array of practical improvements.
-
-finalVerdict:
-A short final humorous verdict.
-`;
-        }
-
-
-        // -----------------------------------------
-        // Send request to Qwen
-        // -----------------------------------------
-
-        console.log(`Sending ${isInstagram ? "Instagram" : "GitHub"} profile to Qwen...`);
-
-        const response = await ollama.chat({
-            model: "qwen3:8b",
-
-            messages: [
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ]
-        });
-
-
-        // -----------------------------------------
-        // Get Qwen response
-        // -----------------------------------------
-
-        const roastText =
-            response?.message?.content || "";
-
-
-        if (!roastText) {
-            throw new Error(
-                "Qwen returned an empty response"
-            );
-        }
-
-
-        // -----------------------------------------
-        // Try to parse JSON returned by Qwen
-        // -----------------------------------------
-
-        let roastResult;
-
-        try {
-
-            roastResult =
-                JSON.parse(roastText);
 
         } catch (error) {
 
             console.warn(
-                "Qwen did not return valid JSON, trying regex extraction..."
+                "Instagram request failed:",
+                error.message
+            );
+        }
+    }
+
+    if (!html) {
+
+        return {
+            success: false,
+            error:
+                "Instagram profile could not be retrieved. Instagram may be blocking automated access."
+        };
+    }
+
+    // ========================================================
+    // META TAG READER
+    // ========================================================
+
+    function getMeta(attribute, value) {
+
+        const escapedValue =
+            value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        const pattern1 = new RegExp(
+            `<meta[^>]*${attribute}=["']${escapedValue}["'][^>]*content=["']([^"']*)["']`,
+            "i"
+        );
+
+        const pattern2 = new RegExp(
+            `<meta[^>]*content=["']([^"']*)["'][^>]*${attribute}=["']${escapedValue}["']`,
+            "i"
+        );
+
+        const match =
+            html.match(pattern1) ||
+            html.match(pattern2);
+
+        return match
+            ? decodeHtmlEntities(match[1])
+            : "";
+    }
+
+    const ogTitle =
+        getMeta("property", "og:title") ||
+        getMeta("name", "og:title");
+
+    const ogDescription =
+        getMeta("property", "og:description") ||
+        getMeta("name", "og:description");
+
+    const metaDescription =
+        getMeta("name", "description") ||
+        getMeta("property", "description");
+
+    let profileImage =
+        getMeta("property", "og:image") ||
+        getMeta("name", "og:image");
+
+    if (!ogTitle && !ogDescription && !metaDescription) {
+
+        return {
+            success: false,
+            error:
+                "Instagram profile not found or unavailable."
+        };
+    }
+
+    if (profileImage) {
+        profileImage =
+            profileImage.replace(/&amp;/g, "&");
+    }
+
+    // ========================================================
+    // NAME
+    // ========================================================
+
+    let fullName = cleanUsername;
+
+    if (ogTitle) {
+
+        const titleMatch =
+            ogTitle.match(
+                /^(.*?)\s*\(@([a-zA-Z0-9._]+)\)/i
             );
 
-            // Attempt to extract JSON block if wrapped in markdown
-            const jsonMatch = roastText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    roastResult = JSON.parse(jsonMatch[0]);
-                } catch (e) {
-                    // Fallback below
-                }
+        if (titleMatch && titleMatch[1]) {
+            fullName =
+                titleMatch[1].trim();
+        }
+    }
+
+    // ========================================================
+    // INSTAGRAM COUNTS
+    // ========================================================
+
+    let followers = 0;
+    let following = 0;
+    let posts = 0;
+
+    const description =
+        ogDescription ||
+        metaDescription ||
+        "";
+
+    const followersMatch =
+        description.match(
+            /([0-9.,]+[KMBkmb]?)\s+Followers/i
+        );
+
+    const followingMatch =
+        description.match(
+            /([0-9.,]+[KMBkmb]?)\s+Following/i
+        );
+
+    const postsMatch =
+        description.match(
+            /([0-9.,]+[KMBkmb]?)\s+Posts/i
+        );
+
+    if (followersMatch) {
+        followers =
+            parseCount(followersMatch[1]);
+    }
+
+    if (followingMatch) {
+        following =
+            parseCount(followingMatch[1]);
+    }
+
+    if (postsMatch) {
+        posts =
+            parseCount(postsMatch[1]);
+    }
+
+    // ========================================================
+    // BIO
+    // ========================================================
+
+    let bio = "";
+
+    if (metaDescription) {
+
+        const bioMatch =
+            metaDescription.match(
+                /on Instagram:\s*"([^"]*)"/is
+            ) ||
+            metaDescription.match(
+                /on Instagram:\s*“(.*?)”/is
+            );
+
+        if (bioMatch) {
+            bio =
+                bioMatch[1].trim();
+        }
+    }
+
+    // ========================================================
+    // IMPORTANT:
+    // ONLY RETURN INSTAGRAM DATA.
+    //
+    // NO:
+    // GitHub repositories
+    // GitHub languages
+    // stars
+    // forks
+    // commits
+    // README information
+    // ========================================================
+
+    return {
+
+        success: true,
+
+        sourceType: "instagram",
+
+        username:
+            cleanUsername,
+
+        fullName:
+            fullName || cleanUsername,
+
+        bio:
+            bio || null,
+
+        profileImage:
+            profileImage || null,
+
+        followers,
+
+        following,
+
+        posts,
+
+        profileUrl:
+            `https://www.instagram.com/${cleanUsername}/`
+    };
+}
+
+// ============================================================
+// INSTAGRAM API
+// ============================================================
+
+app.get(
+    "/api/instagram/:username",
+    async (req, res) => {
+
+        try {
+
+            const username =
+                req.params.username;
+
+            if (!username) {
+
+                return res.status(400).json({
+                    success: false,
+                    error:
+                        "Instagram username is required."
+                });
             }
 
-            if (!roastResult) {
-                // Fallback if Qwen returns plain text
-                roastResult = {
-                    score: 0,
-                    headline: "🔥 Roast Generated",
-                    roast: roastText,
-                    technicalAnalysis: "",
-                    projectAnalysis: "",
-                    activityAnalysis: "",
-                    strengths: [],
-                    weaknesses: [],
-                    recommendations: [],
-                    finalVerdict: ""
-                };
+            const profile =
+                await scrapeInstagramProfile(
+                    username
+                );
+
+            if (!profile.success) {
+
+                return res.status(404).json({
+                    success: false,
+                    error:
+                        profile.error
+                });
+            }
+
+            return res.json(profile);
+
+        } catch (error) {
+
+            console.error(
+                "Instagram error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                error:
+                    error.message ||
+                    "Failed to fetch Instagram profile."
+            });
+        }
+    }
+);
+
+// ============================================================
+// EXTRACT NOTES / PROFILE DATA
+// ============================================================
+
+function extractRoastData(profileData) {
+
+    if (
+        profileData &&
+        profileData.notes
+    ) {
+
+        if (
+            typeof profileData.notes ===
+            "string"
+        ) {
+
+            try {
+
+                return JSON.parse(
+                    profileData.notes
+                );
+
+            } catch {
+
+                return profileData;
             }
         }
 
+        if (
+            typeof profileData.notes ===
+            "object"
+        ) {
+            return profileData.notes;
+        }
+    }
 
-        // -----------------------------------------
-        // Send response to frontend
-        // -----------------------------------------
+    return profileData;
+}
 
-        res.json({
-            success: true,
-            result: roastResult
-        });
+// ============================================================
+// GITHUB SCORE
+//
+// IMPORTANT:
+// This score ONLY uses GitHub data.
+//
+// Instagram NEVER reaches this function.
+// ============================================================
 
+function calculateGithubScore(data) {
 
-    } catch (error) {
+    const profile =
+        data.profile || {};
 
-        console.error(
-            "Ollama error:",
-            error
+    const statistics =
+        data.statistics || {};
+
+    const repositories =
+        Array.isArray(data.repositories)
+            ? data.repositories
+            : [];
+
+    let points = 0;
+
+    // --------------------------------------------------------
+    // PROFILE — 20 POINTS
+    // --------------------------------------------------------
+
+    if (profile.username) {
+        points += 3;
+    }
+
+    if (
+        profile.name &&
+        String(profile.name).trim()
+    ) {
+        points += 4;
+    }
+
+    if (
+        profile.bio &&
+        String(profile.bio).trim()
+    ) {
+        points += 7;
+    }
+
+    if (
+        Number(profile.followers || 0) > 0
+    ) {
+        points += 3;
+    }
+
+    if (
+        Number(profile.following || 0) > 0
+    ) {
+        points += 1;
+    }
+
+    if (
+        Number(profile.repositories || 0) > 0
+    ) {
+        points += 2;
+    }
+
+    // --------------------------------------------------------
+    // PROJECTS — 30 POINTS
+    // --------------------------------------------------------
+
+    const repoCount =
+        repositories.length;
+
+    if (repoCount >= 1) points += 5;
+    if (repoCount >= 3) points += 5;
+    if (repoCount >= 5) points += 5;
+    if (repoCount >= 8) points += 5;
+    if (repoCount >= 12) points += 5;
+    if (repoCount >= 20) points += 5;
+
+    // --------------------------------------------------------
+    // DOCUMENTATION — 15 POINTS
+    // --------------------------------------------------------
+
+    const describedRepos =
+        repositories.filter(repo => {
+
+            return (
+                repo.description &&
+                String(repo.description).trim()
+            );
+
+        }).length;
+
+    if (describedRepos >= 1) {
+        points += 3;
+    }
+
+    if (describedRepos >= 3) {
+        points += 3;
+    }
+
+    if (describedRepos >= 5) {
+        points += 3;
+    }
+
+    if (
+        repoCount > 0 &&
+        describedRepos / repoCount >= 0.75
+    ) {
+        points += 3;
+    }
+
+    if (
+        repoCount > 0 &&
+        describedRepos / repoCount >= 0.90
+    ) {
+        points += 3;
+    }
+
+    // --------------------------------------------------------
+    // TECHNICAL BREADTH — 15 POINTS
+    // --------------------------------------------------------
+
+    const languages =
+        data.languages || {};
+
+    const languageCount =
+        Object.keys(languages).length;
+
+    if (languageCount >= 1) {
+        points += 4;
+    }
+
+    if (languageCount >= 2) {
+        points += 4;
+    }
+
+    if (languageCount >= 3) {
+        points += 3;
+    }
+
+    if (languageCount >= 5) {
+        points += 2;
+    }
+
+    if (languageCount >= 7) {
+        points += 2;
+    }
+
+    // --------------------------------------------------------
+    // COMMUNITY — 10 POINTS
+    // --------------------------------------------------------
+
+    const stars =
+        Number(statistics.totalStars || 0);
+
+    const forks =
+        Number(statistics.totalForks || 0);
+
+    if (stars >= 1) points += 2;
+    if (stars >= 5) points += 2;
+    if (stars >= 20) points += 2;
+
+    if (forks >= 1) points += 2;
+    if (forks >= 5) points += 2;
+
+    // --------------------------------------------------------
+    // ACTIVITY — 10 POINTS
+    // --------------------------------------------------------
+
+    const inactive =
+        Number(
+            statistics.inactiveRepositories || 0
         );
 
-        res.status(500).json({
-            success: false,
-            error:
-                error.message ||
-                "Roast engine failed"
-        });
+    if (
+        repoCount > 0 &&
+        inactive < repoCount
+    ) {
+        points += 4;
     }
-});
 
+    if (
+        repoCount > 0 &&
+        inactive <= repoCount / 2
+    ) {
+        points += 3;
+    }
 
-// -----------------------------------------
-// Start server
-// -----------------------------------------
+    if (
+        repoCount > 0 &&
+        inactive <= repoCount / 4
+    ) {
+        points += 3;
+    }
+
+    // --------------------------------------------------------
+    // CONVERT 100 → 10
+    // --------------------------------------------------------
+
+    return roundScore(
+        clamp(
+            (points / 100) * 10,
+            0,
+            10
+        )
+    );
+}
+
+// ============================================================
+// INSTAGRAM SCORE
+//
+// IMPORTANT:
+// This score ONLY uses Instagram data.
+//
+// No GitHub data is considered.
+// ============================================================
+
+function calculateInstagramScore(data) {
+
+    let points = 0;
+
+    const followers =
+        Number(data.followers || 0);
+
+    const following =
+        Number(data.following || 0);
+
+    const posts =
+        Number(data.posts || 0);
+
+    const hasName =
+        Boolean(
+            data.fullName &&
+            String(data.fullName).trim()
+        );
+
+    const hasUsername =
+        Boolean(
+            data.username &&
+            String(data.username).trim()
+        );
+
+    const hasBio =
+        Boolean(
+            data.bio &&
+            String(data.bio).trim()
+        );
+
+    const hasImage =
+        Boolean(data.profileImage);
+
+    // --------------------------------------------------------
+    // PROFILE PRESENTATION — 30
+    // --------------------------------------------------------
+
+    if (hasUsername) {
+        points += 5;
+    }
+
+    if (hasName) {
+        points += 5;
+    }
+
+    if (hasBio) {
+        points += 15;
+    }
+
+    if (hasImage) {
+        points += 5;
+    }
+
+    // --------------------------------------------------------
+    // CONTENT PRESENCE — 25
+    // --------------------------------------------------------
+
+    if (posts >= 1) {
+        points += 5;
+    }
+
+    if (posts >= 10) {
+        points += 5;
+    }
+
+    if (posts >= 50) {
+        points += 5;
+    }
+
+    if (posts >= 100) {
+        points += 5;
+    }
+
+    if (posts >= 250) {
+        points += 5;
+    }
+
+    // --------------------------------------------------------
+    // AUDIENCE — 20
+    // --------------------------------------------------------
+
+    if (followers >= 1) {
+        points += 4;
+    }
+
+    if (followers >= 100) {
+        points += 4;
+    }
+
+    if (followers >= 1000) {
+        points += 4;
+    }
+
+    if (followers >= 10000) {
+        points += 4;
+    }
+
+    if (followers >= 100000) {
+        points += 4;
+    }
+
+    // --------------------------------------------------------
+    // FOLLOWER / FOLLOWING BALANCE — 15
+    // --------------------------------------------------------
+
+    if (
+        followers > 0 &&
+        following > 0
+    ) {
+
+        const ratio =
+            followers / following;
+
+        if (ratio >= 1) {
+            points += 5;
+        }
+
+        if (ratio >= 2) {
+            points += 5;
+        }
+
+        if (ratio >= 5) {
+            points += 5;
+        }
+    }
+
+    // --------------------------------------------------------
+    // COMPLETENESS — 10
+    // --------------------------------------------------------
+
+    if (hasBio) {
+        points += 5;
+    }
+
+    if (hasImage) {
+        points += 5;
+    }
+
+    return roundScore(
+        clamp(
+            (points / 100) * 10,
+            0,
+            10
+        )
+    );
+}
+
+// ============================================================
+// MASTER SCORE
+//
+// This is where GitHub and Instagram are separated.
+// ============================================================
+
+function calculateScore(
+    sourceType,
+    data
+) {
+
+    if (sourceType === "github") {
+
+        return calculateGithubScore(
+            data
+        );
+    }
+
+    if (sourceType === "instagram") {
+
+        return calculateInstagramScore(
+            data
+        );
+    }
+
+    return 5;
+}
+
+// ============================================================
+// HINGLISH RULES
+// ============================================================
+
+function getHinglishRules() {
+
+    return `
+
+========================================================
+🇮🇳 NATURAL INDIAN HINGLISH
+========================================================
+
+Write natural Roman Hinglish.
+
+Sound like an Indian friend who is genuinely funny,
+not like Google Translate.
+
+Mix Hindi and English naturally.
+
+Use words such as:
+
+bhai
+bro
+tera
+tu
+scene
+sahi
+solid
+mast
+yaar
+kaafi
+thoda
+seedha
+full
+jugaad
+
+But don't force these words into every sentence.
+
+Do NOT write formal Hindi.
+
+Do NOT translate English sentences word-for-word.
+
+========================================================
+🚫 REPETITION IS NOT ALLOWED
+========================================================
+
+Do NOT repeatedly use:
+
+"kya hi bolu"
+"lagta hai"
+"lakin"
+"even GitHub"
+"even Instagram"
+"repo itna khaali hai"
+"profile toh"
+"toh tera"
+"least itna kuch hai"
+"like a"
+
+Especially avoid:
+
+"X hai, lakin Y hai"
+
+over and over again.
+
+Use different sentence structures.
+
+Every section should have different jokes.
+
+Do not repeat the same observation five times.
+
+========================================================
+😂 HUMOR
+========================================================
+
+Use:
+
+- sarcasm
+- exaggeration
+- clever comparisons
+- Indian meme humor
+- developer jokes
+- unexpected punchlines
+- wordplay
+
+The roast should feel spontaneous.
+
+Do not make every sentence a punchline.
+
+========================================================
+💡 CONSTRUCTIVE
+========================================================
+
+The user should actually learn something.
+
+For every major weakness,
+give a practical recommendation.
+
+Roast the PROFILE.
+
+Never attack:
+
+- race
+- religion
+- gender
+- sexuality
+- disability
+- protected characteristics
+- sensitive personal traits
+
+`;
+}
+
+// ============================================================
+// ENGLISH RULES
+// ============================================================
+
+function getEnglishRules() {
+
+    return `
+
+========================================================
+🇺🇸 ENGLISH STYLE
+========================================================
+
+Write natural modern conversational English.
+
+Be witty, sarcastic and specific.
+
+Use developer/social-media humor when appropriate.
+
+Avoid generic AI language.
+
+Avoid repeating the same joke.
+
+Do not sound like a corporate report.
+
+`;
+}
+
+// ============================================================
+// GITHUB PROMPT
+// ============================================================
+
+function buildGithubPrompt(
+    data,
+    score,
+    isHinglish
+) {
+
+    const languageRules =
+        isHinglish
+            ? getHinglishRules()
+            : getEnglishRules();
+
+    return `
+
+You are RoastIt's GitHub roast engine.
+
+IMPORTANT:
+THIS IS A GITHUB PROFILE.
+
+Do NOT treat this as Instagram.
+
+Do NOT mention:
+
+- Instagram posts
+- Instagram reels
+- Instagram followers
+- Instagram bio
+- Instagram engagement
+
+unless they actually exist in PROFILE_DATA.
+
+${languageRules}
+
+========================================================
+💻 GITHUB ANALYSIS
+========================================================
+
+Analyze ONLY:
+
+- GitHub profile
+- repositories
+- repository descriptions
+- programming languages
+- stars
+- forks
+- repository activity
+- profile followers/following
+- project presentation
+
+Do NOT pretend that you inspected source code.
+
+Do NOT claim to have read README files unless
+README information exists in PROFILE_DATA.
+
+Do NOT invent commits.
+
+Do NOT invent contribution graph information.
+
+Do NOT invent technologies.
+
+Do NOT invent project functionality.
+
+========================================================
+📊 SCORE
+========================================================
+
+The backend calculated this score:
+
+${score}
+
+This is the FINAL PROFILE QUALITY SCORE.
+
+You MUST return exactly:
+
+${score}
+
+Do NOT change it.
+
+Do NOT recalculate it.
+
+Do NOT output another score.
+
+0 = extremely poor
+5 = average
+7-8 = good
+9 = excellent
+10 = exceptional
+
+========================================================
+😂 ROAST
+========================================================
+
+Make the roast specific.
+
+Use actual repository names when available.
+
+Use actual numbers when available.
+
+If a description is missing,
+you may joke about the missing description.
+
+If stars are zero,
+you may joke about zero stars.
+
+But do not repeat that same joke everywhere.
+
+Do not invent missing information.
+
+========================================================
+OUTPUT
+========================================================
+
+Return ONLY valid JSON.
+
+No markdown.
+
+No code fences.
+
+No explanation.
+
+Use EXACTLY:
+
+{
+    "score": ${score},
+    "headline": "",
+    "roast": "",
+    "technicalAnalysis": "",
+    "projectAnalysis": "",
+    "activityAnalysis": "",
+    "strengths": [],
+    "weaknesses": [],
+    "recommendations": [],
+    "finalVerdict": ""
+}
+
+Rules:
+
+headline:
+Short memorable GitHub roast.
+
+roast:
+The main funny roast.
+
+technicalAnalysis:
+Technical profile analysis.
+
+projectAnalysis:
+Repository/project analysis.
+
+activityAnalysis:
+GitHub activity and community analysis.
+
+strengths:
+3-5 genuine strengths.
+
+weaknesses:
+3-5 genuine weaknesses.
+
+recommendations:
+3-5 useful improvements.
+
+finalVerdict:
+Short memorable ending.
+
+PROFILE_DATA:
+
+${JSON.stringify(data, null, 2)}
+
+`;
+}
+
+// ============================================================
+// INSTAGRAM PROMPT
+// ============================================================
+
+function buildInstagramPrompt(
+    data,
+    score,
+    isHinglish
+) {
+
+    const languageRules =
+        isHinglish
+            ? getHinglishRules()
+            : getEnglishRules();
+
+    return `
+
+You are RoastIt's Instagram roast engine.
+
+IMPORTANT:
+THIS IS AN INSTAGRAM PROFILE.
+
+Do NOT treat this as GitHub.
+
+Do NOT mention:
+
+- repositories
+- programming languages
+- commits
+- GitHub stars
+- GitHub forks
+- README files
+- GitHub contribution graphs
+
+unless they actually exist in PROFILE_DATA.
+
+${languageRules}
+
+========================================================
+📸 INSTAGRAM ANALYSIS
+========================================================
+
+Analyze ONLY:
+
+- username
+- name
+- bio
+- profile image
+- followers
+- following
+- posts
+- follower/following ratio
+- profile presentation
+- public persona
+
+========================================================
+🚨 CRITICAL DATA RULE
+========================================================
+
+The backend has supplied ONLY the Instagram data
+shown in PROFILE_DATA.
+
+If a field does NOT exist:
+
+DO NOT mention it.
+
+For example:
+
+If "likes" does not exist:
+DO NOT mention likes.
+
+If "comments" does not exist:
+DO NOT mention comments.
+
+If "posts array" does not exist:
+DO NOT say that individual posts are empty.
+
+If only "posts: 66" exists:
+You may say the profile has 66 posts.
+
+You MAY NOT claim you saw those posts.
+
+You MAY NOT invent:
+
+- photos
+- reels
+- captions
+- likes
+- comments
+- engagement
+- content quality
+- visual aesthetic
+
+unless those exact fields exist.
+
+========================================================
+📊 SCORE
+========================================================
+
+The backend calculated the score:
+
+${score}
+
+This is the FINAL PROFILE QUALITY SCORE.
+
+Return EXACTLY:
+
+${score}
+
+Do NOT change it.
+
+Do NOT recalculate it.
+
+Do NOT make the score higher because the profile
+has many followers.
+
+Do NOT make the score lower just because something
+is funny to roast.
+
+0 = extremely poor
+5 = average
+7-8 = good
+9 = excellent
+10 = exceptional
+
+========================================================
+😂 INSTAGRAM HUMOR
+========================================================
+
+Use the ACTUAL Instagram data.
+
+For example:
+
+If bio exists:
+Roast the actual wording.
+
+If followers are available:
+Use the actual follower count.
+
+If following is available:
+You can discuss the ratio.
+
+If posts are available:
+Use the actual post count.
+
+If information is missing:
+Say that information is unavailable.
+
+Do not invent content.
+
+Do not repeat the same joke.
+
+========================================================
+OUTPUT
+========================================================
+
+Return ONLY valid JSON.
+
+No markdown.
+
+No code fences.
+
+No explanation.
+
+Use EXACTLY:
+
+{
+    "score": ${score},
+    "headline": "",
+    "roast": "",
+    "technicalAnalysis": "",
+    "projectAnalysis": "",
+    "activityAnalysis": "",
+    "strengths": [],
+    "weaknesses": [],
+    "recommendations": [],
+    "finalVerdict": ""
+}
+
+Rules:
+
+headline:
+Short memorable Instagram roast.
+
+roast:
+Main funny Instagram roast.
+
+technicalAnalysis:
+Profile, bio and presentation analysis.
+
+projectAnalysis:
+Instagram content/post-count analysis.
+ONLY discuss actual supplied fields.
+
+activityAnalysis:
+Followers, following and available activity data.
+
+strengths:
+3-5 genuine strengths.
+
+weaknesses:
+3-5 genuine weaknesses.
+
+recommendations:
+3-5 useful improvements.
+
+finalVerdict:
+Short memorable Instagram ending.
+
+PROFILE_DATA:
+
+${JSON.stringify(data, null, 2)}
+
+`;
+}
+
+// ============================================================
+// RESUME PROMPT
+// ============================================================
+
+function buildResumePrompt(
+    data,
+    score,
+    isHinglish
+) {
+
+    const languageRules =
+        isHinglish
+            ? getHinglishRules()
+            : getEnglishRules();
+
+    return `
+
+You are RoastIt's resume roast engine.
+
+${languageRules}
+
+Analyze ONLY the supplied resume data.
+
+Do NOT invent:
+
+- companies
+- experience
+- projects
+- technologies
+- education
+- certifications
+- achievements
+
+The backend score is:
+
+${score}
+
+Return exactly ${score}.
+
+Return ONLY valid JSON:
+
+{
+    "score": ${score},
+    "headline": "",
+    "roast": "",
+    "technicalAnalysis": "",
+    "projectAnalysis": "",
+    "activityAnalysis": "",
+    "strengths": [],
+    "weaknesses": [],
+    "recommendations": [],
+    "finalVerdict": ""
+}
+
+PROFILE_DATA:
+
+${JSON.stringify(data, null, 2)}
+
+`;
+}
+
+// ============================================================
+// JSON EXTRACTION
+// ============================================================
+
+function extractJson(text) {
+
+    if (!text) {
+        return null;
+    }
+
+    let cleaned =
+        String(text)
+            .trim()
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+
+    try {
+        return JSON.parse(cleaned);
+    } catch {
+        // Continue
+    }
+
+    const firstBrace =
+        cleaned.indexOf("{");
+
+    const lastBrace =
+        cleaned.lastIndexOf("}");
+
+    if (
+        firstBrace === -1 ||
+        lastBrace === -1 ||
+        lastBrace <= firstBrace
+    ) {
+        return null;
+    }
+
+    const jsonString =
+        cleaned.substring(
+            firstBrace,
+            lastBrace + 1
+        );
+
+    try {
+        return JSON.parse(jsonString);
+    } catch {
+        return null;
+    }
+}
+
+// ============================================================
+// NORMALIZE QWEN RESULT
+// ============================================================
+
+function normalizeResult(
+    result,
+    fixedScore,
+    rawText
+) {
+
+    if (!result) {
+
+        throw new Error(
+            "Qwen did not return valid JSON."
+        );
+    }
+
+    // ========================================================
+    // SCORE OVERRIDE
+    //
+    // QWEN'S SCORE IS IGNORED.
+    // SERVER SCORE ALWAYS WINS.
+    // ========================================================
+
+    result.score =
+        fixedScore;
+
+    result.roastScore =
+        fixedScore;
+
+    result.headline =
+        typeof result.headline === "string"
+            ? result.headline.trim()
+            : "🔥 Roast Generated";
+
+    result.roast =
+        typeof result.roast === "string"
+            ? result.roast.trim()
+            : rawText;
+
+    result.technicalAnalysis =
+        typeof result.technicalAnalysis === "string"
+            ? result.technicalAnalysis.trim()
+            : "";
+
+    result.projectAnalysis =
+        typeof result.projectAnalysis === "string"
+            ? result.projectAnalysis.trim()
+            : "";
+
+    result.activityAnalysis =
+        typeof result.activityAnalysis === "string"
+            ? result.activityAnalysis.trim()
+            : "";
+
+    result.finalVerdict =
+        typeof result.finalVerdict === "string"
+            ? result.finalVerdict.trim()
+            : "";
+
+    if (!Array.isArray(result.strengths)) {
+        result.strengths = [];
+    }
+
+    if (!Array.isArray(result.weaknesses)) {
+        result.weaknesses = [];
+    }
+
+    if (!Array.isArray(result.recommendations)) {
+        result.recommendations = [];
+    }
+
+    result.strengths =
+        result.strengths
+            .filter(Boolean)
+            .map(String);
+
+    result.weaknesses =
+        result.weaknesses
+            .filter(Boolean)
+            .map(String);
+
+    result.recommendations =
+        result.recommendations
+            .filter(Boolean)
+            .map(String);
+
+    return result;
+}
+
+// ============================================================
+// MAIN ROAST API
+// ============================================================
+
+app.post(
+    "/api/roast",
+    async (req, res) => {
+
+        try {
+
+            const profileData =
+                req.body;
+
+            if (
+                !profileData ||
+                typeof profileData !== "object" ||
+                Object.keys(profileData).length === 0
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    error:
+                        "No profile data provided."
+                });
+            }
+
+            // =================================================
+            // SOURCE TYPE
+            // =================================================
+
+            const sourceType =
+                String(
+                    profileData.sourceType ||
+                    "github"
+                ).toLowerCase();
+
+            const isGithub =
+                sourceType === "github";
+
+            const isInstagram =
+                sourceType === "instagram";
+
+            const isResume =
+                sourceType === "resume";
+
+            // =================================================
+            // LANGUAGE
+            // =================================================
+
+            const isHinglish =
+                profileData.language === "hinglish" ||
+                profileData.roastLanguage === "hinglish";
+
+            const language =
+                isHinglish
+                    ? "hinglish"
+                    : "english";
+
+            // =================================================
+            // DATA
+            // =================================================
+
+            const roastData =
+                extractRoastData(
+                    profileData
+                );
+
+            // =================================================
+            // SCORE
+            // =================================================
+
+            const fixedScore =
+                calculateScore(
+                    sourceType,
+                    roastData
+                );
+
+            console.log(
+                "=============================================="
+            );
+
+            console.log(
+                "🔥 ROAST REQUEST"
+            );
+
+            console.log(
+                "Source:",
+                sourceType
+            );
+
+            console.log(
+                "Language:",
+                language
+            );
+
+            console.log(
+                "Fixed Score:",
+                fixedScore
+            );
+
+            console.log(
+                "=============================================="
+            );
+
+            // =================================================
+            // BUILD SOURCE-SPECIFIC PROMPT
+            // =================================================
+
+            let prompt;
+
+            if (isGithub) {
+
+                prompt =
+                    buildGithubPrompt(
+                        roastData,
+                        fixedScore,
+                        isHinglish
+                    );
+
+            } else if (isInstagram) {
+
+                prompt =
+                    buildInstagramPrompt(
+                        roastData,
+                        fixedScore,
+                        isHinglish
+                    );
+
+            } else if (isResume) {
+
+                prompt =
+                    buildResumePrompt(
+                        roastData,
+                        fixedScore,
+                        isHinglish
+                    );
+
+            } else {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    error:
+                        `Unsupported source type: ${sourceType}`
+                });
+            }
+
+            // =================================================
+            // SEND TO QWEN
+            // =================================================
+
+            console.log(
+                `🔥 Sending ${sourceType} profile to Qwen (${language})...`
+            );
+
+            const response =
+                await ollama.chat({
+
+                    model: "qwen3:8b",
+
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ],
+
+                    options: {
+
+                        /*
+                         * Lower temperature prevents
+                         * wildly different output while
+                         * still allowing humor.
+                         */
+
+                        temperature: 0.65,
+
+                        top_p: 0.85,
+
+                        repeat_penalty: 1.18,
+
+                        num_predict: 2500
+                    }
+                });
+
+            // =================================================
+            // RESPONSE
+            // =================================================
+
+            const roastText =
+                response?.message?.content ||
+                "";
+
+            if (!roastText) {
+
+                throw new Error(
+                    "Qwen returned an empty response."
+                );
+            }
+
+            console.log(
+                "🔥 Qwen response received."
+            );
+
+            // =================================================
+            // PARSE
+            // =================================================
+
+            let roastResult =
+                extractJson(
+                    roastText
+                );
+
+            if (!roastResult) {
+
+                console.error(
+                    "❌ Invalid Qwen JSON:"
+                );
+
+                console.error(
+                    roastText
+                );
+
+                throw new Error(
+                    "Qwen did not return valid JSON."
+                );
+            }
+
+            // =================================================
+            // NORMALIZE
+            // =================================================
+
+            roastResult =
+                normalizeResult(
+                    roastResult,
+                    fixedScore,
+                    roastText
+                );
+
+            // =================================================
+            // FINAL RESPONSE
+            // =================================================
+
+            console.log(
+                `🔥 Roast complete | Source: ${sourceType} | Language: ${language} | Score: ${fixedScore}/10`
+            );
+
+            return res.json({
+
+                success: true,
+
+                source:
+                    sourceType,
+
+                language:
+                    language,
+
+                result:
+                    roastResult
+            });
+
+        } catch (error) {
+
+            console.error(
+                "❌ Roast engine error:"
+            );
+
+            console.error(
+                error
+            );
+
+            return res.status(500).json({
+
+                success: false,
+
+                error:
+                    error.message ||
+                    "Roast engine failed."
+            });
+        }
+    }
+);
+
+// ============================================================
+// START SERVER
+// ============================================================
 
 const PORT = 3000;
 
-app.listen(PORT, () => {
-    console.log(
-        `RoastIt backend running on http://localhost:${PORT}`
-    );
-});
+app.listen(
+    PORT,
+    () => {
+
+        console.log(
+            "=============================================="
+        );
+
+        console.log(
+            "🔥 RoastIt AI backend running"
+        );
+
+        console.log(
+            "🌐 http://localhost:3000"
+        );
+
+        console.log(
+            "🤖 Ollama: http://127.0.0.1:11434"
+        );
+
+        console.log(
+            "🧠 Model: qwen3:8b"
+        );
+
+        console.log(
+            "📸 Instagram: ENABLED"
+        );
+
+        console.log(
+            "💻 GitHub: ENABLED"
+        );
+
+        console.log(
+            "🇮🇳 Hinglish: ENABLED"
+        );
+
+        console.log(
+            "=============================================="
+        );
+    }
+);
