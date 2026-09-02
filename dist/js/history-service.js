@@ -37,7 +37,6 @@ const HistoryService = {
       fileUrl: data.fileUrl || "",
       profileImage: data.profileImage || "",
       roastText: data.roastText || "",
-      roastScore: data.roastScore || 0,
       createdAt: createdAt,
     };
   },

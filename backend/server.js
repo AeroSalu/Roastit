@@ -88,10 +88,6 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
-function roundScore(value) {
-    return Math.round(value * 10) / 10;
-}
-
 // ============================================================
 // INSTAGRAM SCRAPER
 // ============================================================
@@ -451,398 +447,6 @@ function extractRoastData(profileData) {
     return profileData;
 }
 
-// ============================================================
-// GITHUB SCORE
-//
-// IMPORTANT:
-// This score ONLY uses GitHub data.
-//
-// Instagram NEVER reaches this function.
-// ============================================================
-
-function calculateGithubScore(data) {
-
-    const profile =
-        data.profile || {};
-
-    const statistics =
-        data.statistics || {};
-
-    const repositories =
-        Array.isArray(data.repositories)
-            ? data.repositories
-            : [];
-
-    let points = 0;
-
-    // --------------------------------------------------------
-    // PROFILE — 20 POINTS
-    // --------------------------------------------------------
-
-    if (profile.username) {
-        points += 3;
-    }
-
-    if (
-        profile.name &&
-        String(profile.name).trim()
-    ) {
-        points += 4;
-    }
-
-    if (
-        profile.bio &&
-        String(profile.bio).trim()
-    ) {
-        points += 7;
-    }
-
-    if (
-        Number(profile.followers || 0) > 0
-    ) {
-        points += 3;
-    }
-
-    if (
-        Number(profile.following || 0) > 0
-    ) {
-        points += 1;
-    }
-
-    if (
-        Number(profile.repositories || 0) > 0
-    ) {
-        points += 2;
-    }
-
-    // --------------------------------------------------------
-    // PROJECTS — 30 POINTS
-    // --------------------------------------------------------
-
-    const repoCount =
-        repositories.length;
-
-    if (repoCount >= 1) points += 5;
-    if (repoCount >= 3) points += 5;
-    if (repoCount >= 5) points += 5;
-    if (repoCount >= 8) points += 5;
-    if (repoCount >= 12) points += 5;
-    if (repoCount >= 20) points += 5;
-
-    // --------------------------------------------------------
-    // DOCUMENTATION — 15 POINTS
-    // --------------------------------------------------------
-
-    const describedRepos =
-        repositories.filter(repo => {
-
-            return (
-                repo.description &&
-                String(repo.description).trim()
-            );
-
-        }).length;
-
-    if (describedRepos >= 1) {
-        points += 3;
-    }
-
-    if (describedRepos >= 3) {
-        points += 3;
-    }
-
-    if (describedRepos >= 5) {
-        points += 3;
-    }
-
-    if (
-        repoCount > 0 &&
-        describedRepos / repoCount >= 0.75
-    ) {
-        points += 3;
-    }
-
-    if (
-        repoCount > 0 &&
-        describedRepos / repoCount >= 0.90
-    ) {
-        points += 3;
-    }
-
-    // --------------------------------------------------------
-    // TECHNICAL BREADTH — 15 POINTS
-    // --------------------------------------------------------
-
-    const languages =
-        data.languages || {};
-
-    const languageCount =
-        Object.keys(languages).length;
-
-    if (languageCount >= 1) {
-        points += 4;
-    }
-
-    if (languageCount >= 2) {
-        points += 4;
-    }
-
-    if (languageCount >= 3) {
-        points += 3;
-    }
-
-    if (languageCount >= 5) {
-        points += 2;
-    }
-
-    if (languageCount >= 7) {
-        points += 2;
-    }
-
-    // --------------------------------------------------------
-    // COMMUNITY — 10 POINTS
-    // --------------------------------------------------------
-
-    const stars =
-        Number(statistics.totalStars || 0);
-
-    const forks =
-        Number(statistics.totalForks || 0);
-
-    if (stars >= 1) points += 2;
-    if (stars >= 5) points += 2;
-    if (stars >= 20) points += 2;
-
-    if (forks >= 1) points += 2;
-    if (forks >= 5) points += 2;
-
-    // --------------------------------------------------------
-    // ACTIVITY — 10 POINTS
-    // --------------------------------------------------------
-
-    const inactive =
-        Number(
-            statistics.inactiveRepositories || 0
-        );
-
-    if (
-        repoCount > 0 &&
-        inactive < repoCount
-    ) {
-        points += 4;
-    }
-
-    if (
-        repoCount > 0 &&
-        inactive <= repoCount / 2
-    ) {
-        points += 3;
-    }
-
-    if (
-        repoCount > 0 &&
-        inactive <= repoCount / 4
-    ) {
-        points += 3;
-    }
-
-    // --------------------------------------------------------
-    // CONVERT 100 → 10
-    // --------------------------------------------------------
-
-    return roundScore(
-        clamp(
-            (points / 100) * 10,
-            0,
-            10
-        )
-    );
-}
-
-// ============================================================
-// INSTAGRAM SCORE
-//
-// IMPORTANT:
-// This score ONLY uses Instagram data.
-//
-// No GitHub data is considered.
-// ============================================================
-
-function calculateInstagramScore(data) {
-
-    let points = 0;
-
-    const followers =
-        Number(data.followers || 0);
-
-    const following =
-        Number(data.following || 0);
-
-    const posts =
-        Number(data.posts || 0);
-
-    const hasName =
-        Boolean(
-            data.fullName &&
-            String(data.fullName).trim()
-        );
-
-    const hasUsername =
-        Boolean(
-            data.username &&
-            String(data.username).trim()
-        );
-
-    const hasBio =
-        Boolean(
-            data.bio &&
-            String(data.bio).trim()
-        );
-
-    const hasImage =
-        Boolean(data.profileImage);
-
-    // --------------------------------------------------------
-    // PROFILE PRESENTATION — 30
-    // --------------------------------------------------------
-
-    if (hasUsername) {
-        points += 5;
-    }
-
-    if (hasName) {
-        points += 5;
-    }
-
-    if (hasBio) {
-        points += 15;
-    }
-
-    if (hasImage) {
-        points += 5;
-    }
-
-    // --------------------------------------------------------
-    // CONTENT PRESENCE — 25
-    // --------------------------------------------------------
-
-    if (posts >= 1) {
-        points += 5;
-    }
-
-    if (posts >= 10) {
-        points += 5;
-    }
-
-    if (posts >= 50) {
-        points += 5;
-    }
-
-    if (posts >= 100) {
-        points += 5;
-    }
-
-    if (posts >= 250) {
-        points += 5;
-    }
-
-    // --------------------------------------------------------
-    // AUDIENCE — 20
-    // --------------------------------------------------------
-
-    if (followers >= 1) {
-        points += 4;
-    }
-
-    if (followers >= 100) {
-        points += 4;
-    }
-
-    if (followers >= 1000) {
-        points += 4;
-    }
-
-    if (followers >= 10000) {
-        points += 4;
-    }
-
-    if (followers >= 100000) {
-        points += 4;
-    }
-
-    // --------------------------------------------------------
-    // FOLLOWER / FOLLOWING BALANCE — 15
-    // --------------------------------------------------------
-
-    if (
-        followers > 0 &&
-        following > 0
-    ) {
-
-        const ratio =
-            followers / following;
-
-        if (ratio >= 1) {
-            points += 5;
-        }
-
-        if (ratio >= 2) {
-            points += 5;
-        }
-
-        if (ratio >= 5) {
-            points += 5;
-        }
-    }
-
-    // --------------------------------------------------------
-    // COMPLETENESS — 10
-    // --------------------------------------------------------
-
-    if (hasBio) {
-        points += 5;
-    }
-
-    if (hasImage) {
-        points += 5;
-    }
-
-    return roundScore(
-        clamp(
-            (points / 100) * 10,
-            0,
-            10
-        )
-    );
-}
-
-// ============================================================
-// MASTER SCORE
-//
-// This is where GitHub and Instagram are separated.
-// ============================================================
-
-function calculateScore(
-    sourceType,
-    data
-) {
-
-    if (sourceType === "github") {
-
-        return calculateGithubScore(
-            data
-        );
-    }
-
-    if (sourceType === "instagram") {
-
-        return calculateInstagramScore(
-            data
-        );
-    }
-
-    return 5;
-}
 
 // ============================================================
 // HINGLISH RULES
@@ -990,7 +594,6 @@ Do not sound like a corporate report.
 
 function buildGithubPrompt(
     data,
-    score,
     isHinglish
 ) {
 
@@ -1050,32 +653,6 @@ Do NOT invent technologies.
 Do NOT invent project functionality.
 
 ========================================================
-📊 SCORE
-========================================================
-
-The backend calculated this score:
-
-${score}
-
-This is the FINAL PROFILE QUALITY SCORE.
-
-You MUST return exactly:
-
-${score}
-
-Do NOT change it.
-
-Do NOT recalculate it.
-
-Do NOT output another score.
-
-0 = extremely poor
-5 = average
-7-8 = good
-9 = excellent
-10 = exceptional
-
-========================================================
 😂 ROAST
 ========================================================
 
@@ -1110,7 +687,6 @@ No explanation.
 Use EXACTLY:
 
 {
-    "score": ${score},
     "headline": "",
     "roast": "",
     "technicalAnalysis": "",
@@ -1164,7 +740,6 @@ ${JSON.stringify(data, null, 2)}
 
 function buildInstagramPrompt(
     data,
-    score,
     isHinglish
 ) {
 
@@ -1254,36 +829,6 @@ You MAY NOT invent:
 unless those exact fields exist.
 
 ========================================================
-📊 SCORE
-========================================================
-
-The backend calculated the score:
-
-${score}
-
-This is the FINAL PROFILE QUALITY SCORE.
-
-Return EXACTLY:
-
-${score}
-
-Do NOT change it.
-
-Do NOT recalculate it.
-
-Do NOT make the score higher because the profile
-has many followers.
-
-Do NOT make the score lower just because something
-is funny to roast.
-
-0 = extremely poor
-5 = average
-7-8 = good
-9 = excellent
-10 = exceptional
-
-========================================================
 😂 INSTAGRAM HUMOR
 ========================================================
 
@@ -1325,7 +870,6 @@ No explanation.
 Use EXACTLY:
 
 {
-    "score": ${score},
     "headline": "",
     "roast": "",
     "technicalAnalysis": "",
@@ -1380,7 +924,6 @@ ${JSON.stringify(data, null, 2)}
 
 function buildResumePrompt(
     data,
-    score,
     isHinglish
 ) {
 
@@ -1407,16 +950,9 @@ Do NOT invent:
 - certifications
 - achievements
 
-The backend score is:
-
-${score}
-
-Return exactly ${score}.
-
 Return ONLY valid JSON:
 
 {
-    "score": ${score},
     "headline": "",
     "roast": "",
     "technicalAnalysis": "",
@@ -1492,7 +1028,6 @@ function extractJson(text) {
 
 function normalizeResult(
     result,
-    fixedScore,
     rawText
 ) {
 
@@ -1503,18 +1038,8 @@ function normalizeResult(
         );
     }
 
-    // ========================================================
-    // SCORE OVERRIDE
-    //
-    // QWEN'S SCORE IS IGNORED.
-    // SERVER SCORE ALWAYS WINS.
-    // ========================================================
-
-    result.score =
-        fixedScore;
-
-    result.roastScore =
-        fixedScore;
+    delete result.score;
+    delete result.roastScore;
 
     result.headline =
         typeof result.headline === "string"
@@ -1645,16 +1170,6 @@ app.post(
                     profileData
                 );
 
-            // =================================================
-            // SCORE
-            // =================================================
-
-            const fixedScore =
-                calculateScore(
-                    sourceType,
-                    roastData
-                );
-
             console.log(
                 "=============================================="
             );
@@ -1674,11 +1189,6 @@ app.post(
             );
 
             console.log(
-                "Fixed Score:",
-                fixedScore
-            );
-
-            console.log(
                 "=============================================="
             );
 
@@ -1693,7 +1203,6 @@ app.post(
                 prompt =
                     buildGithubPrompt(
                         roastData,
-                        fixedScore,
                         isHinglish
                     );
 
@@ -1702,7 +1211,6 @@ app.post(
                 prompt =
                     buildInstagramPrompt(
                         roastData,
-                        fixedScore,
                         isHinglish
                     );
 
@@ -1711,7 +1219,6 @@ app.post(
                 prompt =
                     buildResumePrompt(
                         roastData,
-                        fixedScore,
                         isHinglish
                     );
 
@@ -1814,7 +1321,6 @@ app.post(
             roastResult =
                 normalizeResult(
                     roastResult,
-                    fixedScore,
                     roastText
                 );
 
@@ -1823,7 +1329,7 @@ app.post(
             // =================================================
 
             console.log(
-                `🔥 Roast complete | Source: ${sourceType} | Language: ${language} | Score: ${fixedScore}/10`
+                `🔥 Roast complete | Source: ${sourceType} | Language: ${language}`
             );
 
             return res.json({

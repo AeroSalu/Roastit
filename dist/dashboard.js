@@ -1533,8 +1533,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
       return {
 
-        score: 5,
-
         headline: "🔥 Roast Generated",
 
         roast: "",
@@ -1558,47 +1556,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    // ------------------------------------------
-    // SCORE
-    // ------------------------------------------
-
-    var scoreValue =
-      result.score !== undefined &&
-      result.score !== null
-        ? result.score
-        : result.roastScore;
-
-
-    var score =
-      Number(scoreValue);
-
-
-    if (
-      isNaN(score) ||
-      score < 0 ||
-      score > 10
-    ) {
-
-      score = 5;
-
-    }
-
-
-    result.score =
-      Math.max(
-        0,
-        Math.min(
-          10,
-          score
-        )
-      );
-
-
-    // Keep compatibility with
-    // existing Firestore history
-
-    result.roastScore =
-      result.score;
+    delete result.score;
+    delete result.roastScore;
 
 
     // ------------------------------------------
@@ -1847,43 +1806,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    // ------------------------------------------
-    // ROAST SCORE
-    // ------------------------------------------
-
-    var scoreLabel =
-      document.createElement(
-        "p"
-      );
-
-    scoreLabel.className =
-      "card-label";
-
-    scoreLabel.textContent =
-      "ROAST SCORE";
-
-    container.appendChild(
-      scoreLabel
-    );
-
-
-    var score =
-      document.createElement(
-        "strong"
-      );
-
-    score.className =
-      "score result-score";
-
-    score.textContent =
-      Number(
-        result.score
-      ).toFixed(1) +
-      "/10 🔥";
-
-    container.appendChild(
-      score
-    );
 
 
     // ------------------------------------------
@@ -2340,28 +2262,19 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    // Score
+    // Headline
 
-    container.appendChild(
-      textElement(
-        "p",
-        "ROAST SCORE",
-        "card-label"
-      )
-    );
+    if (
+      roast.headline
+    ) {
 
+      addSection(
+        container,
+        "🔥 OVERALL ROAST",
+        roast.headline
+      );
 
-    container.appendChild(
-      textElement(
-        "strong",
-        formatScore(
-          roast.score !== undefined
-            ? roast.score
-            : roast.roastScore
-        ),
-        "score result-score"
-      )
-    );
+    }
 
 
     // Roast
@@ -2952,23 +2865,6 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
 
-        var score =
-          document.createElement(
-            "span"
-          );
-
-
-        score.textContent =
-          formatScore(
-            roast.score !== undefined
-              ? roast.score
-              : roast.roastScore
-          );
-
-
-        item.appendChild(
-          score
-        );
 
 
         item.addEventListener(
@@ -3240,28 +3136,19 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    // SCORE
+    if (
+      roast.headline
+    ) {
 
-    card.appendChild(
-      textElement(
-        "p",
-        "ROAST SCORE",
-        "card-label"
-      )
-    );
+      card.appendChild(
+        textElement(
+          "p",
+          roast.headline,
+          "card-label"
+        )
+      );
 
-
-    card.appendChild(
-      textElement(
-        "strong",
-        formatScore(
-          roast.score !== undefined
-            ? roast.score
-            : roast.roastScore
-        ),
-        "score"
-      )
-    );
+    }
 
 
     card.appendChild(
@@ -3899,34 +3786,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
 
-  // ==========================================================
-  // FORMAT SCORE
-  // ==========================================================
-
-  function formatScore(score) {
-
-    var numericScore =
-      Number(score);
-
-
-    if (
-      isNaN(numericScore) ||
-      numericScore < 0 ||
-      numericScore > 10
-    ) {
-
-      numericScore =
-        5;
-
-    }
-
-
-    return (
-      numericScore.toFixed(1) +
-      "/10 🔥"
-    );
-
-  }
 
 
   // ==========================================================

@@ -94,16 +94,14 @@ const RoastService = {
     };
 
     const roastText = lines[prepared.sourceType] || lines.linkedin;
-    const roastScore = Math.round((5.8 + Math.random() * 3.6) * 10) / 10;
 
     return {
       roastText: roastText,
-      roastScore: roastScore,
     };
   },
 
   // INTEGRATION POINT: replace generateLocalRoast with your AI backend.
-  // Keep secrets on the server. Expected response: { roastText, roastScore }.
+  // Keep secrets on the server. Expected response: { roastText }.
   generate: async function (prepared) {
     await ResumeService.extractText(prepared);
     return this.generateLocalRoast(prepared);
@@ -111,8 +109,6 @@ const RoastService = {
 
   save: async function (user, prepared, result) {
     const roastText = (result.roastText || result.roast || result.headline || "Roast generated").slice(0, 8000);
-    const rawScore = typeof result.roastScore === "number" ? result.roastScore : (typeof result.score === "number" ? result.score : 5);
-    const roastScore = Math.max(0, Math.min(10, Number(rawScore) || 0));
 
     const payload = {
       uid: user.uid,
@@ -123,7 +119,6 @@ const RoastService = {
       fileUrl: (prepared.fileUrl || "").slice(0, 2000),
       profileImage: (prepared.profileImage || "").slice(0, 2000),
       roastText: roastText,
-      roastScore: roastScore,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
 

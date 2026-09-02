@@ -659,10 +659,6 @@ img {
   font-size: 0.8rem;
 }
 
-.score {
-  color: var(--accent-hover);
-  font-size: 1.1rem;
-}
 
 .card-actions {
   flex-wrap: wrap;
@@ -721,11 +717,6 @@ img {
   object-fit: cover;
 }
 
-.result-score {
-  display: block;
-  margin-bottom: 18px;
-  font-size: 1.45rem;
-}
 
 .roast-text {
   white-space: pre-wrap;

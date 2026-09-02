@@ -16,7 +16,6 @@ service cloud.firestore {
     //   - fileUrl: string (required, 0-2000) - Storage URL for resume
     //   - profileImage: string (required, 0-2000)
     //   - roastText: string (required, 1-8000)
-    //   - roastScore: number (required, 0-10)
     //   - createdAt: timestamp (required)
     //
     // Users may create, read, and delete only their own documents.
@@ -45,7 +44,6 @@ service cloud.firestore {
           'fileUrl',
           'profileImage',
           'roastText',
-          'roastScore',
           'createdAt'
         ]) &&
         data.uid == request.auth.uid &&
@@ -57,9 +55,6 @@ service cloud.firestore {
         validString(data.fileUrl, 0, 2000) &&
         validString(data.profileImage, 0, 2000) &&
         validString(data.roastText, 1, 8000) &&
-        data.roastScore is number &&
-        data.roastScore >= 0 &&
-        data.roastScore <= 10 &&
         data.createdAt is timestamp;
     }
 
