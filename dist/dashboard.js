@@ -626,66 +626,62 @@ document.addEventListener("DOMContentLoaded", function () {
   // FILE SELECTION
   // ==========================================================
 
+  function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return "0 Bytes";
+    var k = 1024;
+    var sizes = ["Bytes", "KB", "MB"];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }
+
   function chooseFile(file) {
+    state.reusedResume = null;
+    state.selectedFile = file;
 
-    state.reusedResume =
-      null;
-
-    state.selectedFile =
-      file;
-
-
-    var selectedFile =
-      document.querySelector(
-        "#selected-file"
-      );
-
-
-    if (!selectedFile) {
-      return;
-    }
-
+    var selectedFileStatus = document.querySelector("#selected-file");
+    var container = document.querySelector("#selected-file-container");
+    var nameEl = document.querySelector("#selected-file-name");
+    var sizeEl = document.querySelector("#selected-file-size");
 
     if (!file) {
-
-      selectedFile.textContent =
-        "";
-
+      if (selectedFileStatus) selectedFileStatus.textContent = "";
+      if (container) container.hidden = true;
+      if (resumeFile) resumeFile.value = "";
       return;
-
     }
 
+    if (typeof RoastValidators !== "undefined") {
+      var validation = RoastValidators.validateResumeFile(file);
 
-    if (
-      typeof RoastValidators !==
-      "undefined"
-    ) {
-
-      var validation =
-        RoastValidators.validateResumeFile(
-          file
-        );
-
-
-      selectedFile.textContent =
-        validation.ok
-          ? "Selected: " + file.name
-          : validation.message;
-
-
-      selectedFile.classList.toggle(
-        "error-text",
-        !validation.ok
-      );
-
-    } else {
-
-      selectedFile.textContent =
-        "Selected: " +
-        file.name;
-
+      if (!validation.ok) {
+        if (selectedFileStatus) {
+          selectedFileStatus.textContent = validation.message;
+          selectedFileStatus.classList.add("error-text");
+        }
+        if (container) container.hidden = true;
+        return;
+      }
     }
 
+    if (selectedFileStatus) {
+      selectedFileStatus.textContent = "";
+      selectedFileStatus.classList.remove("error-text");
+    }
+
+    if (container && nameEl && sizeEl) {
+      nameEl.textContent = file.name;
+      sizeEl.textContent = formatFileSize(file.size);
+      container.hidden = false;
+    }
+  }
+
+  var removeFileBtn = document.querySelector("#file-remove-btn");
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      chooseFile(null);
+    });
   }
 
 
@@ -1203,242 +1199,76 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
 
-        var preparedResume;
+        if (!state.selectedFile) {
+          throw new UserFacingError("Please select a PDF or DOCX resume to roast.");
+        }
 
-
-        // Reuse previous resume
-        if (
-          state.reusedResume
-        ) {
-
-          preparedResume =
-            resumePreparedFromRoast(
-              state.reusedResume
-            );
-
-        } else {
-
-          if (
-            typeof RoastValidators ===
-            "undefined"
-          ) {
-
-            throw new Error(
-              "Resume validation service is unavailable."
-            );
-
-          }
-
-
-          var fileValidation =
-            RoastValidators.validateResumeFile(
-              state.selectedFile
-            );
-
-
+        if (typeof RoastValidators !== "undefined") {
+          var fileValidation = RoastValidators.validateResumeFile(state.selectedFile);
           if (!fileValidation.ok) {
-
-            throw new UserFacingError(
-              fileValidation.message
-            );
-
+            throw new UserFacingError(fileValidation.message);
           }
-
-
-          roastStatus.textContent =
-            "Uploading resume...";
-
-
-          uploadedResume =
-            await ResumeService.upload(
-              state.user,
-              state.selectedFile
-            );
-
-
-          preparedResume =
-            uploadedResume;
-
         }
 
+        var preparedResume = {
+          sourceType: "resume",
+          profileName: state.selectedFile.name,
+          profileUrl: "",
+          fileName: state.selectedFile.name,
+          fileUrl: "",
+          profileImage: "",
+          notes: "",
+          language: state.language
+        };
 
-        // IMPORTANT
-        preparedResume.language =
-          state.language;
-
-
-        preparedResume.sourceType =
-          "resume";
-
-
-        console.log(
-          "Prepared resume:",
-          preparedResume
+        var resumeResponseData = await ResumeService.roastResumeFile(
+          state.selectedFile,
+          state.language
         );
 
+        console.log("🔥 Resume Qwen response:", resumeResponseData);
 
-        console.log(
-          "Resume language:",
-          preparedResume.language
-        );
-
-
-        // ======================================================
-        // SEND DIRECTLY TO QWEN
-        // ======================================================
-
-        roastStatus.textContent =
-          state.language === "hinglish"
-            ? "🇮🇳 Sending resume to Qwen..."
-            : "🔥 Sending resume to Qwen...";
-
-
-        var resumeResponse =
-          await fetch(
-            "http://localhost:3000/api/roast",
-            {
-
-              method: "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-
-              body:
-                JSON.stringify(
-                  preparedResume
-                )
-
-            }
-          );
-
-
-        if (!resumeResponse.ok) {
-
-          var resumeErrorData =
-            {};
-
-          try {
-
-            resumeErrorData =
-              await resumeResponse.json();
-
-          } catch (error) {
-            // Ignore invalid JSON
-          }
-
-
-          throw new Error(
-            resumeErrorData.error ||
-            "Roast Engine failed."
-          );
-
+        if (!resumeResponseData || resumeResponseData.success === false) {
+          throw new Error(resumeResponseData?.error || "Resume Roaster failed.");
         }
 
-
-        var resumeResponseData =
-          await resumeResponse.json();
-
-
-        console.log(
-          "🔥 Resume Qwen response:",
-          resumeResponseData
-        );
-
-
-        if (
-          !resumeResponseData ||
-          resumeResponseData.success === false
-        ) {
-
-          throw new Error(
-            resumeResponseData?.error ||
-            "Roast Engine failed."
-          );
-
-        }
-
-
-        var resumeResult =
-          resumeResponseData.result;
-
-
+        var resumeResult = resumeResponseData.result;
         if (!resumeResult) {
-
-          throw new Error(
-            "Roast Engine returned no roast result."
-          );
-
+          throw new Error("Roast Engine returned no roast result.");
         }
 
-
-        resumeResult =
-          normalizeResult(
-            resumeResult
-          );
-
+        // Keep structured data intact while normalizing fallback text
+        resumeResult = normalizeResult(resumeResult);
 
         // ======================================================
         // SAVE RESUME ROAST
         // ======================================================
 
-        roastStatus.textContent =
-          "Saving your roast...";
+        roastStatus.textContent = "Saving your roast...";
 
-
-        var savedResumeRoast =
-          null;
-
+        var savedResumeRoast = null;
 
         try {
-
-          savedResumeRoast =
-            await RoastService.save(
-              state.user,
-              preparedResume,
-              resumeResult
-            );
-
-
-          HistoryService.prepend(
-            savedResumeRoast
+          savedResumeRoast = await RoastService.save(
+            state.user,
+            preparedResume,
+            resumeResult
           );
 
-
-          state.recentItems.unshift(
-            savedResumeRoast
-          );
-
-
-          state.recentItems =
-            state.recentItems.slice(
-              0,
-              3
-            );
-
-
+          HistoryService.prepend(savedResumeRoast);
+          state.recentItems.unshift(savedResumeRoast);
+          state.recentItems = state.recentItems.slice(0, 3);
           renderRecentRoasts();
-
           renderHistory();
-
         } catch (saveError) {
-
-          console.warn(
-            "Could not save resume roast:",
-            saveError
-          );
-
+          console.warn("Could not save resume roast:", saveError);
         }
-
 
         // ======================================================
         // DISPLAY
         // ======================================================
 
-        roastStatus.textContent =
-          "🔥 Roast generated!";
-
+        roastStatus.textContent = "🔥 Roast generated!";
 
         renderRoastResult(
           preparedResume,
@@ -1446,29 +1276,13 @@ document.addEventListener("DOMContentLoaded", function () {
           savedResumeRoast
         );
 
-
         showView("result");
 
-
-        state.selectedFile =
-          null;
-
-
+        state.selectedFile = null;
         if (resumeFile) {
           resumeFile.value = "";
         }
-
-
-        var selectedFileElement =
-          document.querySelector(
-            "#selected-file"
-          );
-
-
-        if (selectedFileElement) {
-          selectedFileElement.textContent =
-            "";
-        }
+        chooseFile(null);
 
 
       } catch (error) {
@@ -1528,74 +1342,49 @@ document.addEventListener("DOMContentLoaded", function () {
   // ==========================================================
 
   function normalizeResult(result) {
-
     if (!result) {
-
       return {
-
         headline: "🔥 Roast Generated",
-
         roast: "",
-
         technicalAnalysis: "",
-
         projectAnalysis: "",
-
         activityAnalysis: "",
-
         strengths: [],
-
         weaknesses: [],
-
         recommendations: [],
-
         finalVerdict: ""
-
       };
-
     }
 
-
-    delete result.score;
-    delete result.roastScore;
-
+    // Preserve score if present (for resume), only delete if explicitly requested or empty
+    if (result.sourceType !== "resume" && result.score === undefined) {
+      delete result.score;
+      delete result.roastScore;
+    }
 
     // ------------------------------------------
     // ARRAYS
     // ------------------------------------------
 
-    if (
-      !Array.isArray(
-        result.strengths
-      )
-    ) {
-
+    if (!Array.isArray(result.strengths)) {
       result.strengths = [];
-
     }
 
-
-    if (
-      !Array.isArray(
-        result.weaknesses
-      )
-    ) {
-
+    if (!Array.isArray(result.weaknesses)) {
       result.weaknesses = [];
-
     }
 
-
-    if (
-      !Array.isArray(
-        result.recommendations
-      )
-    ) {
-
+    if (!Array.isArray(result.recommendations)) {
       result.recommendations = [];
-
     }
 
+    if (!Array.isArray(result.improvements)) {
+      result.improvements = [];
+    }
+
+    if (!Array.isArray(result.quickWins)) {
+      result.quickWins = [];
+    }
 
     // ------------------------------------------
     // TEXT
@@ -1603,37 +1392,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
     result.headline =
       result.headline ||
-      "🔥 Roast Generated";
-
+      (result.score !== undefined ? "Resume Roast Score: " + result.score + "/10" : "🔥 Roast Generated");
 
     result.roast =
       result.roast ||
+      result.overallRoast ||
       result.roastText ||
       "";
-
 
     result.technicalAnalysis =
       result.technicalAnalysis ||
       "";
 
-
-    result.projectAnalysis =
-      result.projectAnalysis ||
-      "";
-
-
     result.activityAnalysis =
       result.activityAnalysis ||
       "";
-
 
     result.finalVerdict =
       result.finalVerdict ||
       "";
 
-
     return result;
-
   }
 
 
@@ -1809,6 +1588,66 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     // ------------------------------------------
+    // RESUME: rich structured rendering
+    // ------------------------------------------
+
+    if (
+      prepared.sourceType === "resume"
+    ) {
+
+      addScoreSection(
+        container,
+        result.score,
+        result.scoreExplanation
+      );
+
+      if (result.roast || result.overallRoast) {
+        addSection(
+          container,
+          "💀 THE MAIN ROAST",
+          result.roast || result.overallRoast
+        );
+      }
+
+      if (Array.isArray(result.strengths) && result.strengths.length) {
+        addListSection(container, "✅ WHAT'S ACTUALLY GOOD", result.strengths);
+      }
+
+      if (Array.isArray(result.weaknesses) && result.weaknesses.length) {
+        addListSection(container, "🚩 THE BIG PROBLEMS", result.weaknesses);
+      }
+
+      if (Array.isArray(result.roastSections) && result.roastSections.length) {
+        addRoastSectionsList(container, result.roastSections);
+      }
+
+      if (Array.isArray(result.projectAnalysis) && result.projectAnalysis.length) {
+        addProjectAnalysisSection(container, result.projectAnalysis);
+      }
+
+      if (result.atsAnalysis) {
+        addAtsSection(container, result.atsAnalysis);
+      }
+
+      if (Array.isArray(result.improvements) && result.improvements.length) {
+        addListSection(container, "🛠️ IMPROVEMENTS", result.improvements);
+      }
+
+      if (Array.isArray(result.quickWins) && result.quickWins.length) {
+        addListSection(container, "⚡ QUICK WINS (5-Minute Fixes)", result.quickWins);
+      }
+
+      if (result.recruiterPerspective) {
+        addSection(container, "👔 RECRUITER PERSPECTIVE", result.recruiterPerspective);
+      }
+
+      if (result.finalVerdict) {
+        addSection(container, "🏁 FINAL VERDICT", result.finalVerdict);
+      }
+
+    } else {
+
+    // ------------------------------------------
     // HEADLINE
     // ------------------------------------------
 
@@ -1975,6 +1814,9 @@ document.addEventListener("DOMContentLoaded", function () {
         "🏁 FINAL VERDICT",
         result.finalVerdict
       );
+
+    } // end non-resume block
+    }
 
     }
 
@@ -3719,6 +3561,263 @@ document.addEventListener("DOMContentLoaded", function () {
 
   }
 
+  // ==========================================================
+  // HELPER: RESUME ROAST SCORE SECTION
+  // ==========================================================
+
+  function addScoreSection(container, score, explanation) {
+    var scoreNum = parseFloat(score);
+    if (isNaN(scoreNum)) scoreNum = 7.0;
+
+    var section = document.createElement("section");
+    section.className = "roast-result-section";
+
+    var title = document.createElement("h2");
+    title.textContent = "📊 RESUME ROAST SCORE";
+    section.appendChild(title);
+
+    var card = document.createElement("div");
+    card.className = "resume-score-card";
+
+    var badge = document.createElement("div");
+    badge.className = "resume-score-badge";
+
+    var numEl = document.createElement("span");
+    numEl.className = "resume-score-number";
+    numEl.textContent = scoreNum.toFixed(1);
+
+    var maxEl = document.createElement("span");
+    maxEl.className = "resume-score-max";
+    maxEl.textContent = "/ 10";
+
+    badge.appendChild(numEl);
+    badge.appendChild(maxEl);
+    card.appendChild(badge);
+
+    var info = document.createElement("div");
+    info.className = "resume-score-info";
+
+    var label = document.createElement("div");
+    label.className = "resume-score-label";
+    label.textContent = scoreNum >= 8 ? "🔥 Solid Contender" : (scoreNum >= 5 ? "⚠️ Dangerous Mediocrity" : "💀 Complete Career Hazard");
+    info.appendChild(label);
+
+    var desc = document.createElement("p");
+    desc.className = "resume-score-desc";
+    desc.textContent = explanation || "Analyzed across technical depth, quantifiable impact, ATS readability, and section structure.";
+    info.appendChild(desc);
+
+    card.appendChild(info);
+    section.appendChild(card);
+    container.appendChild(section);
+  }
+
+  // ==========================================================
+  // HELPER: SECTION-BY-SECTION ROAST
+  // ==========================================================
+
+  function addRoastSectionsList(container, sections) {
+    if (!Array.isArray(sections) || !sections.length) return;
+
+    var wrapper = document.createElement("section");
+    wrapper.className = "roast-result-section";
+
+    var heading = document.createElement("h2");
+    heading.textContent = "💀 THE ROAST (SECTION-BY-SECTION)";
+    wrapper.appendChild(heading);
+
+    sections.forEach(function (sec) {
+      var card = document.createElement("div");
+      var sev = (sec.severity || "medium").toLowerCase();
+      card.className = "roast-section-card severity-" + sev;
+
+      var header = document.createElement("div");
+      header.className = "roast-section-header";
+
+      var name = document.createElement("span");
+      name.className = "roast-section-name";
+      name.textContent = sec.section || "Section";
+      header.appendChild(name);
+
+      var pill = document.createElement("span");
+      pill.className = "severity-pill severity-" + sev;
+      pill.textContent = sev;
+      header.appendChild(pill);
+
+      card.appendChild(header);
+
+      if (sec.roast) {
+        var roastP = document.createElement("p");
+        roastP.className = "roast-section-roast";
+        roastP.textContent = '"' + sec.roast + '"';
+        card.appendChild(roastP);
+      }
+
+      if (sec.issue) {
+        var issueDiv = document.createElement("div");
+        issueDiv.className = "roast-section-field";
+        issueDiv.innerHTML = "<strong>The Problem:</strong> " + sec.issue;
+        card.appendChild(issueDiv);
+      }
+
+      if (sec.fix) {
+        var fixDiv = document.createElement("div");
+        fixDiv.className = "roast-section-field";
+        fixDiv.innerHTML = "<strong>How to Fix:</strong> " + sec.fix;
+        card.appendChild(fixDiv);
+      }
+
+      wrapper.appendChild(card);
+    });
+
+    container.appendChild(wrapper);
+  }
+
+  // ==========================================================
+  // HELPER: ATS ANALYSIS SECTION
+  // ==========================================================
+
+  function addAtsSection(container, ats) {
+    if (!ats) return;
+
+    var wrapper = document.createElement("section");
+    wrapper.className = "roast-result-section";
+
+    var title = document.createElement("h2");
+    title.textContent = "🤖 ATS COMPATIBILITY CHECK";
+    wrapper.appendChild(title);
+
+    var box = document.createElement("div");
+    box.className = "ats-box";
+
+    var header = document.createElement("div");
+    header.className = "ats-header";
+
+    var label = document.createElement("span");
+    label.innerHTML = "<strong>Estimated ATS Score</strong> (Formatting & Keyword Scan)";
+    header.appendChild(label);
+
+    var scoreDisplay = document.createElement("span");
+    scoreDisplay.className = "ats-score-display";
+    var atsScore = parseInt(ats.score, 10) || 70;
+    scoreDisplay.textContent = atsScore + "%";
+    header.appendChild(scoreDisplay);
+
+    box.appendChild(header);
+
+    var barWrap = document.createElement("div");
+    barWrap.className = "ats-bar-wrap";
+
+    var barFill = document.createElement("div");
+    barFill.className = "ats-bar-fill";
+    barFill.style.width = atsScore + "%";
+    barWrap.appendChild(barFill);
+    box.appendChild(barWrap);
+
+    if (Array.isArray(ats.issues) && ats.issues.length) {
+      var issueTitle = document.createElement("p");
+      issueTitle.innerHTML = "<strong>⚠️ ATS Warnings Detected:</strong>";
+      box.appendChild(issueTitle);
+
+      var uList = document.createElement("ul");
+      ats.issues.forEach(function (issue) {
+        var li = document.createElement("li");
+        li.textContent = issue;
+        uList.appendChild(li);
+      });
+      box.appendChild(uList);
+    }
+
+    if (Array.isArray(ats.recommendations) && ats.recommendations.length) {
+      var recTitle = document.createElement("p");
+      recTitle.innerHTML = "<strong>💡 ATS Recommendations:</strong>";
+      box.appendChild(recTitle);
+
+      var recList = document.createElement("ul");
+      ats.recommendations.forEach(function (rec) {
+        var li = document.createElement("li");
+        li.textContent = rec;
+        recList.appendChild(li);
+      });
+      box.appendChild(recList);
+    }
+
+    var disclaimer = document.createElement("small");
+    disclaimer.className = "muted";
+    disclaimer.style.display = "block";
+    disclaimer.style.marginTop = "12px";
+    disclaimer.textContent = "* Note: This is an automated compatibility analysis based on structure, headers, and keyword clarity, not a guarantee of ATS pass.";
+    box.appendChild(disclaimer);
+
+    wrapper.appendChild(box);
+    container.appendChild(wrapper);
+  }
+
+  // ==========================================================
+  // HELPER: PROJECT ANALYSIS SECTION
+  // ==========================================================
+
+  function addProjectAnalysisSection(container, projects) {
+    if (!Array.isArray(projects) || !projects.length) return;
+
+    var wrapper = document.createElement("section");
+    wrapper.className = "roast-result-section";
+
+    var title = document.createElement("h2");
+    title.textContent = "📁 PROJECT AUDIT & REWRITES";
+    wrapper.appendChild(title);
+
+    projects.forEach(function (proj) {
+      var card = document.createElement("div");
+      card.className = "project-card";
+
+      var h3 = document.createElement("h3");
+      var nameSpan = document.createElement("span");
+      nameSpan.textContent = proj.projectName || "Project";
+      h3.appendChild(nameSpan);
+
+      if (proj.verdict) {
+        var pill = document.createElement("span");
+        pill.className = "project-verdict-pill";
+        pill.textContent = proj.verdict;
+        h3.appendChild(pill);
+      }
+      card.appendChild(h3);
+
+      if (proj.critique) {
+        var p = document.createElement("p");
+        p.className = "roast-text";
+        p.textContent = proj.critique;
+        card.appendChild(p);
+      }
+
+      if (proj.before || proj.recommendedRewrite) {
+        var comp = document.createElement("div");
+        comp.className = "project-comparison";
+
+        if (proj.before) {
+          var col1 = document.createElement("div");
+          col1.className = "comparison-col before";
+          col1.innerHTML = "<small>❌ What You Wrote (Weak / Vague)</small>" + proj.before;
+          comp.appendChild(col1);
+        }
+
+        if (proj.recommendedRewrite) {
+          var col2 = document.createElement("div");
+          col2.className = "comparison-col after";
+          col2.innerHTML = "<small>✅ High-Impact Rewrite</small>" + proj.recommendedRewrite;
+          comp.appendChild(col2);
+        }
+
+        card.appendChild(comp);
+      }
+
+      wrapper.appendChild(card);
+    });
+
+    container.appendChild(wrapper);
+  }
+
 
   // ==========================================================
   // ACTION BUTTON
@@ -3826,49 +3925,42 @@ document.addEventListener("DOMContentLoaded", function () {
   ) {
 
     if (roastButton) {
-
-      roastButton.disabled =
-        isProcessing;
-
+      roastButton.disabled = isProcessing;
     }
 
+    document.querySelectorAll(".source-card").forEach(function (card) {
+      card.disabled = isProcessing;
+    });
 
-    document
-      .querySelectorAll(
-        ".source-card"
-      )
-      .forEach(
-        function (card) {
+    document.querySelectorAll(".language-btn").forEach(function (button) {
+      button.disabled = isProcessing;
+    });
 
-          card.disabled =
-            isProcessing;
+    if (window._roastLoadingInterval) {
+      clearInterval(window._roastLoadingInterval);
+      window._roastLoadingInterval = null;
+    }
 
+    if (isProcessing && state.sourceType === "resume") {
+      var loadingMessages = [
+        "Reading your career decisions...",
+        "Scanning for recruiter damage...",
+        "Checking how many buzzwords survived...",
+        "Consulting the hiring gods...",
+        "Preparing your professional destruction..."
+      ];
+      var msgIndex = 0;
+      if (roastStatus) {
+        roastStatus.textContent = loadingMessages[0];
+      }
+      window._roastLoadingInterval = setInterval(function () {
+        msgIndex = (msgIndex + 1) % loadingMessages.length;
+        if (roastStatus) {
+          roastStatus.textContent = loadingMessages[msgIndex];
         }
-      );
-
-
-    document
-      .querySelectorAll(
-        ".language-btn"
-      )
-      .forEach(
-        function (button) {
-
-          button.disabled =
-            isProcessing;
-
-        }
-      );
-
-
-    if (
-      message &&
-      roastStatus
-    ) {
-
-      roastStatus.textContent =
-        message;
-
+      }, 2200);
+    } else if (message && roastStatus) {
+      roastStatus.textContent = message;
     }
 
   }

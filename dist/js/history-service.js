@@ -4,6 +4,7 @@
 
 const HistoryService = {
   PAGE_SIZE: 20,
+  SUPPORTED_SOURCE_TYPES: ["github", "linkedin"],
   cache: {
     uid: "",
     filter: "all",
@@ -42,7 +43,11 @@ const HistoryService = {
   },
 
   load: async function (uid, filter, reset) {
-    const nextFilter = filter || "all";
+    let nextFilter = filter || "all";
+    if (nextFilter !== "all" && !this.SUPPORTED_SOURCE_TYPES.includes(nextFilter)) {
+      nextFilter = "all";
+    }
+
     if (reset || this.cache.uid !== uid || this.cache.filter !== nextFilter) {
       this.cache = {
         uid: uid,
@@ -78,7 +83,11 @@ const HistoryService = {
 
       const snapshot = await query.get();
       snapshot.docs.forEach((doc) => {
-        this.cache.items.push(this.mapDoc(doc));
+        const item = this.mapDoc(doc);
+        // Exclude unsupported legacy roast types (e.g. instagram, resume)
+        if (this.SUPPORTED_SOURCE_TYPES.includes(item.sourceType)) {
+          this.cache.items.push(item);
+        }
       });
 
       this.cache.lastDoc = snapshot.docs[snapshot.docs.length - 1] || this.cache.lastDoc;
@@ -103,6 +112,9 @@ const HistoryService = {
 
   prepend: function (roast) {
     if (!roast || roast.uid !== this.cache.uid) {
+      return;
+    }
+    if (!this.SUPPORTED_SOURCE_TYPES.includes(roast.sourceType)) {
       return;
     }
     if (this.cache.filter !== "all" && this.cache.filter !== roast.sourceType) {

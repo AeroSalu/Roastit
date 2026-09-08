@@ -471,63 +471,52 @@ img {
   margin-bottom: 4px;
 }
 
-.roast-form-card,
-.recent-block,
 .history-heading,
 .history-tools,
 .history-grid,
-.result-card,
 .profile-card {
   max-width: 1000px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.roast-form-card {
-  padding: 24px;
+.roast-form-card,
+.recent-block,
+.result-card {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.resume-source-form[hidden],
+.roast-form-card {
+  padding: 32px 28px;
+  border-top: 2px solid var(--accent);
+}
+
+.roast-card-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.roast-card-header .source-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.roast-card-header h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 6px 0 8px;
+  color: var(--text);
+}
+
+.roast-card-header p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 #url-source-form[hidden] {
   display: none;
-}
-
-.drop-zone {
-  min-height: 150px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 20px;
-  color: var(--text);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  cursor: pointer;
-  text-align: center;
-  transition: border-color 0.18s ease, background 0.18s ease;
-}
-
-.drop-zone:hover,
-.drop-zone.dragging {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.drop-zone small,
-.selected-file {
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.drop-zone-icon {
-  font-size: 1.8rem;
-}
-
-.selected-file {
-  min-height: 1.4em;
-  margin: 10px 0 0;
 }
 
 .error-text {
@@ -535,7 +524,12 @@ img {
 }
 
 .roast-form-card .roast-btn {
-  margin-top: 18px;
+  margin-top: 22px;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .recent-block {
@@ -723,6 +717,12 @@ img {
   line-height: 1.75;
   color: var(--text);
 }
+
+
+
+
+
+
 
 .profile-card {
   text-align: center;

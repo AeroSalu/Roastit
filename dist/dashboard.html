@@ -21,7 +21,6 @@
   <script defer src="js/roast-services.js?v=3"></script>
   <script defer src="js/history-service.js?v=3"></script>
   <script defer src="github-service.js?v=3"></script>
-  <script defer src="instagram-service.js?v=1"></script>
   <script defer src="dashboard.js?v=3"></script>
 </head>
 
@@ -122,7 +121,7 @@
           <div>
 
             <p class="eyebrow">
-              ROAST LAB
+              GITHUB ROAST LAB
             </p>
 
 
@@ -132,8 +131,7 @@
 
 
             <p class="muted">
-              Choose a source and we’ll find the personality
-              hiding in the pixels.
+              Drop any GitHub profile URL and let AI roast the repos, commit habits, and developer delusions.
             </p>
 
           </div>
@@ -149,90 +147,16 @@
 
 
         <!-- =========================================
-             SOURCE SELECTION
-        ========================================== -->
-
-        <section
-          class="source-grid"
-          aria-label="Choose a roast source">
-
-
-          <!-- GITHUB -->
-
-          <button
-            class="source-card selected"
-            type="button"
-            data-source="github"
-            aria-pressed="true">
-
-            <span class="source-icon">
-              💻
-            </span>
-
-            <span>
-              GitHub
-            </span>
-
-            <small>
-              Profile URL
-            </small>
-
-          </button>
-
-
-          <!-- INSTAGRAM -->
-
-          <button
-            class="source-card"
-            type="button"
-            data-source="instagram"
-            aria-pressed="false">
-
-            <span class="source-icon">
-              📸
-            </span>
-
-            <span>
-              Instagram
-            </span>
-
-            <small>
-              Profile URL
-            </small>
-
-          </button>
-
-
-          <!-- RESUME -->
-
-          <button
-            class="source-card"
-            type="button"
-            data-source="resume"
-            aria-pressed="false">
-
-            <span class="source-icon">
-              📄
-            </span>
-
-            <span>
-              Resume
-            </span>
-
-            <small>
-              PDF or image
-            </small>
-
-          </button>
-
-        </section>
-
-
-        <!-- =========================================
-             ROAST FORM
+             GITHUB ROASTER (PRIMARY CENTERED FEATURE)
         ========================================== -->
 
         <article class="card roast-form-card">
+
+          <div class="roast-card-header">
+            <span class="source-badge">💻 GitHub Profile Roaster</span>
+            <h2>Roast Any GitHub Profile</h2>
+            <p class="muted">Paste a GitHub profile link to get a brutally honest AI breakdown.</p>
+          </div>
 
 
           <!-- URL FORM -->
@@ -255,69 +179,6 @@
               type="url"
               placeholder="https://github.com/username"
               autocomplete="url">
-
-          </div>
-
-
-          <!-- =========================================
-               RESUME FORM
-          ========================================== -->
-
-          <div
-            class="resume-source-form"
-            id="resume-source-form"
-            hidden>
-
-
-            <label
-              class="field-label"
-              for="resume-file">
-
-              Upload your resume
-
-            </label>
-
-
-            <label
-              class="drop-zone"
-              id="drop-zone"
-              for="resume-file">
-
-              <span class="drop-zone-icon">
-                📄
-              </span>
-
-
-              <span id="file-picker-copy">
-
-                Drop a PDF or image here,
-                or choose a file
-
-              </span>
-
-
-              <small>
-
-                PDF, JPG, JPEG, PNG, or WEBP
-                · maximum 8 MB
-
-              </small>
-
-            </label>
-
-
-            <input
-              id="resume-file"
-              type="file"
-              accept="application/pdf,image/jpeg,image/png,image/webp"
-              hidden>
-
-
-            <p
-              class="selected-file"
-              id="selected-file"
-              aria-live="polite">
-            </p>
 
           </div>
 
@@ -354,7 +215,7 @@
 
               <!-- HINGLISH -->
 
-              <button
+              <!-- <button
                 class="language-btn"
                 type="button"
                 data-language="hinglish"
@@ -362,7 +223,7 @@
 
                 🇮🇳 Hinglish
 
-              </button>
+              </button> -->
 
             </div>
 
@@ -378,7 +239,7 @@
             id="roast-btn"
             type="button">
 
-            🔥 Roast Profile
+            🔥 Roast GitHub Profile
 
           </button>
 
@@ -503,27 +364,7 @@
               type="button"
               data-filter="github">
 
-              💻 GitHub
-
-            </button>
-
-
-            <button
-              class="filter-btn"
-              type="button"
-              data-filter="instagram">
-
-              📸 Instagram
-
-            </button>
-
-
-            <button
-              class="filter-btn"
-              type="button"
-              data-filter="resume">
-
-              📄 Resume
+              GitHub
 
             </button>
 

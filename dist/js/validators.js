@@ -1,23 +1,6 @@
 // URL and file checks used by the dashboard roast form.
 
 const RoastValidators = {
-  MAX_RESUME_BYTES: 8 * 1024 * 1024,
-
-  allowedResumeTypes: {
-    "application/pdf": true,
-    "image/jpeg": true,
-    "image/png": true,
-    "image/webp": true,
-  },
-
-  allowedResumeExtensions: {
-    pdf: true,
-    jpg: true,
-    jpeg: true,
-    png: true,
-    webp: true,
-  },
-
   normalizeUrl: function (raw) {
     const trimmed = (raw || "").trim();
     if (!trimmed) {
@@ -90,42 +73,7 @@ const RoastValidators = {
     };
   },
 
-  validateInstagram: function (raw) {
-    const parts = this.getHostAndPath(raw);
-    if (!parts) {
-      return { ok: false, message: "Enter a valid Instagram URL, starting with https://" };
-    }
-    if (parts.host !== "instagram.com") {
-      return { ok: false, message: "That does not look like an Instagram link." };
-    }
-    const segments = parts.path.split("/").filter(Boolean);
-    const username = segments[0];
-    const blocked = { p: true, reel: true, reels: true, stories: true, explore: true };
-    if (!username || blocked[username] || segments.length !== 1) {
-      return { ok: false, message: "Use an Instagram profile URL like https://instagram.com/username" };
-    }
-    return {
-      ok: true,
-      url: "https://www.instagram.com/" + username,
-      profileName: username,
-    };
-  },
 
-  validateResumeFile: function (file) {
-    if (!file) {
-      return { ok: false, message: "Choose a PDF or image resume first." };
-    }
-    if (file.size > this.MAX_RESUME_BYTES) {
-      return { ok: false, message: "That file is too large. Please keep resumes under 8 MB." };
-    }
-    const extension = (file.name.split(".").pop() || "").toLowerCase();
-    const typeOk = this.allowedResumeTypes[file.type];
-    const extensionOk = this.allowedResumeExtensions[extension];
-    if (!typeOk && !extensionOk) {
-      return { ok: false, message: "Please upload a PDF, JPG, JPEG, PNG, or WEBP file." };
-    }
-    return { ok: true };
-  },
 
   friendlyFirebaseError: function (error) {
     const code = error && error.code ? error.code : "";
